@@ -4,7 +4,7 @@ A play-to-earn 3D chicken farm. Next.js (App Router, static export) + Tailwind C
 React Three Fiber / drei, with Supabase (email + password, no OTP) as the backend.
 
 ## Setup
-1. In Supabase, run `supabase/schema.sql` in the SQL editor (tables, RLS, atomic RPCs, storage bucket).
+1. In Supabase, run `supabase/schema.sql` in the SQL editor (tables, RLS, atomic RPCs, storage bucket and dynamic payment accounts). If the base tables already exist from an older build, run `supabase/payment-accounts.sql` after the compatible base schema instead.
 2. Authentication > Providers > Email: keep Email on, turn **Confirm email OFF**.
 3. Provide `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.example`).
 4. Sign up in the app, then make yourself admin in the SQL editor:
@@ -25,6 +25,13 @@ pnpm build      # static export -> dist/
 | `/game/dashboard` | My Farm: 2-column chicken cards, 24h timers, collectible eggs, Sell All Eggs |
 | `/game/profile` | Wallet, total invested, referral link, withdrawals + history |
 | `/game/admin` | Payment settings, deposit + withdrawal approvals, users list with Block/Unblock |
+
+### Payment accounts
+
+Admins can add, edit, hide/show and delete any number of payment accounts from the Settings tab:
+EasyPaisa, JazzCash, NayaPay, SadaPay, a bank account, or a custom wallet. Each account has a display
+label, holder name, number/IBAN and display order. The Buy modal reads only active accounts, so changing
+the admin list immediately changes the payment destinations shown to users.
 
 ## Architecture
 - `public/chicken.glb`, `public/farmhouse.glb` are loaded with `useGLTF` and rendered via `<primitive object={scene} />`.
