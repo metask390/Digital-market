@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ImageUp, Loader2, X } from 'lucide-react'
-import { fetchSettings, submitDeposit } from '@/lib/api'
+import { fetchPaymentAccounts, submitDeposit } from '@/lib/api'
 import { useGame } from '@/components/GameProvider'
 import { errMsg, num } from '@/lib/format'
-import type { ChickenType, GameSettings } from '@/lib/types'
+import type { ChickenType, PaymentAccount } from '@/lib/types'
 
 const MAX_FILE = 8 * 1024 * 1024
 
@@ -19,22 +19,22 @@ function Row({ label, name, number }: { label: string; name: string; number: str
   )
 }
 
-export function BuyModal({ chicken, onClose, onDone }: {
-  chicken: ChickenType; onClose: () => void; onDone: (message: string) => void
+export function BuyModal({ chicken, onCloseAction, onDoneAction }: {
+  chicken: ChickenType; onCloseAction: () => void; onDoneAction: (message: string) => void
 }) {
   const { userId } = useGame()
   const [qty, setQty] = useState('1')
   const [txn, setTxn] = useState('')
   const [sender, setSender] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [settings, setSettings] = useState<GameSettings | null>(null)
+  const [accounts, setAccounts] = useState<PaymentAccount[]>([])
   const [settingsErr, setSettingsErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
   useEffect(() => {
-    fetchSettings().then(setSettings).catch(e => setSettingsErr(errMsg(e, 'Could not load payment details.')))
+    fetchPaymentAccounts().then(setAccounts).catch(e => setSettingsErr(errMsg(e, 'Could not load payment details.')))
   }, [])
 
   const quantity = useMemo(() => {
@@ -56,7 +56,7 @@ export function BuyModal({ chicken, onClose, onDone }: {
     try {
       await submitDeposit({ userId, chickenTypeId: chicken.id, quantity, transactionId: txn.trim(), senderName: sender.trim(), screenshot: file })
       setDone(true)
-      setTimeout(() => onDone(`Order received: ${quantity} x ${chicken.name} (${num(total)} Rs). Your chickens arrive once the payment is approved.`), 1800)
+      setTimeout(() => onDoneAction(`Order received: ${quantity} x ${chicken.name} (${num(total)} Rs). Your chickens arrive once the payment is approved.`), 1800)
     } catch (err) {
       setError(errMsg(err))
     } finally {
@@ -64,7 +64,7 @@ export function BuyModal({ chicken, onClose, onDone }: {
     }
   }
 
-  const hasPay = settings && (settings.easypaisa_number || settings.jazzcash_number || settings.bank_account_number)
+  const hasPay = accounts.length > 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={`Buy ${chicken.name}`}>
@@ -82,7 +82,7 @@ export function BuyModal({ chicken, onClose, onDone }: {
                 <h2 className="font-display text-2xl">Buy {chicken.name}</h2>
                 <p className="text-xs font-bold text-ink/60">{num(chicken.price)} Rs each · lays {num(chicken.egg_value)} Rs / egg</p>
               </div>
-              <button type="button" onClick={onClose} aria-label="Close" className="rounded-full bg-black/5 p-2"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={onCloseAction} aria-label="Close" className="rounded-full bg-black/5 p-2"><X className="h-5 w-5" /></button>
             </div>
 
             <label className="block">
@@ -98,16 +98,10 @@ export function BuyModal({ chicken, onClose, onDone }: {
 
             <section className="space-y-2 rounded-2xl bg-leaf-soft p-3">
               <p className="text-xs font-extrabold uppercase tracking-wider text-leaf-dark">Send exactly {num(total)} Rs to</p>
-              {settings && (
-                <>
-                  <Row label="EasyPaisa" name={settings.easypaisa_name} number={settings.easypaisa_number} />
-                  <Row label="JazzCash" name={settings.jazzcash_name} number={settings.jazzcash_number} />
-                  <Row label={settings.bank_name || 'Bank'} name={settings.bank_account_name} number={settings.bank_account_number} />
-                </>
-              )}
-              {!settings && !settingsErr && <p className="text-sm font-bold">Loading payment details...</p>}
+              {accounts.map(account => <Row key={account.id} label={account.label} name={account.account_name} number={account.account_number} />)}
+              {!accounts.length && !settingsErr && <p className="text-sm font-bold">Loading payment details...</p>}
               {settingsErr && <p className="text-sm font-bold text-red-700">{settingsErr}</p>}
-              {settings && !hasPay && <p className="text-sm font-bold text-red-700">Payment details have not been set up yet. Please try again later.</p>}
+              {!accounts.length && settingsErr && <p className="text-sm font-bold text-red-700">Payment details have not been set up yet. Please try again later.</p>}
             </section>
 
             <label className="block">

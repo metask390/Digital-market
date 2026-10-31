@@ -53,8 +53,8 @@ export default function MarketPage() {
       </div>
 
       {buying && (
-        <BuyModal chicken={buying} onClose={() => setBuying(null)}
-          onDone={msg => { setBuying(null); setToast(msg); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+        <BuyModal chicken={buying} onCloseAction={() => setBuying(null)}
+          onDoneAction={msg => { setBuying(null); setToast(msg); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       )}
     </ViewCanvasHost>
   )

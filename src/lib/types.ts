@@ -62,6 +62,19 @@ export interface GameSettings {
   bank_account_number: string
 }
 
+export type PaymentAccountKind = 'easypaisa' | 'jazzcash' | 'nayapay' | 'sadapay' | 'bank' | 'other'
+export interface PaymentAccount {
+  id: string
+  kind: PaymentAccountKind | string
+  label: string
+  account_name: string
+  account_number: string
+  active: boolean
+  sort_order: number
+  created_at?: string
+  updated_at?: string
+}
+
 export interface AdminUserRow {
   user_id: string
   email: string | null

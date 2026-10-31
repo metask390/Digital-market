@@ -1,19 +1,20 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, Check, CheckCircle2, Copy, Eye, Loader2, ShieldAlert, X } from 'lucide-react'
+import { Ban, Check, CheckCircle2, Copy, Eye, Loader2, Pencil, Plus, ShieldAlert, Trash2, X } from 'lucide-react'
 import { useGame } from '@/components/GameProvider'
 import {
   adminApproveDeposit, adminApproveWithdrawal, adminPendingDeposits, adminPendingWithdrawals,
-  adminRejectDeposit, adminRejectWithdrawal, adminSaveSettings, adminScreenshotUrl, adminSetBlocked,
-  adminUsers, fetchSettings, type AdminDeposit,
+  adminCreatePaymentAccount, adminDeletePaymentAccount, adminPaymentAccounts, adminRejectDeposit,
+  adminRejectWithdrawal, adminScreenshotUrl, adminSetBlocked, adminTogglePaymentAccount, adminUpdatePaymentAccount,
+  adminUsers, type AdminDeposit,
 } from '@/lib/api'
 import { errMsg, num, rs, when } from '@/lib/format'
-import type { AdminUserRow, GameSettings, Withdrawal } from '@/lib/types'
+import type { AdminUserRow, PaymentAccount, Withdrawal } from '@/lib/types'
 
 type Tab = 'deposits' | 'withdrawals' | 'users' | 'settings'
-const EMPTY: Omit<GameSettings, 'id'> = {
-  easypaisa_name: '', easypaisa_number: '', jazzcash_name: '', jazzcash_number: '',
-  bank_name: '', bank_account_name: '', bank_account_number: '',
+type AccountDraft = Omit<PaymentAccount, 'id' | 'created_at' | 'updated_at'>
+const EMPTY_ACCOUNT: AccountDraft = {
+  kind: 'other', label: '', account_name: '', account_number: '', active: true, sort_order: 10,
 }
 
 export default function AdminPage() {
@@ -22,7 +23,9 @@ export default function AdminPage() {
   const [deposits, setDeposits] = useState<AdminDeposit[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [users, setUsers] = useState<AdminUserRow[]>([])
-  const [settings, setSettings] = useState<Omit<GameSettings, 'id'>>(EMPTY)
+  const [accounts, setAccounts] = useState<PaymentAccount[]>([])
+  const [accountDraft, setAccountDraft] = useState<AccountDraft>(EMPTY_ACCOUNT)
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -30,9 +33,8 @@ export default function AdminPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [d, w, u, s] = await Promise.all([adminPendingDeposits(), adminPendingWithdrawals(), adminUsers(), fetchSettings()])
-      setDeposits(d); setWithdrawals(w); setUsers(u)
-      if (s) { const { id: _id, ...rest } = s; setSettings(rest) }
+      const [d, w, u, pa] = await Promise.all([adminPendingDeposits(), adminPendingWithdrawals(), adminUsers(), adminPaymentAccounts()])
+      setDeposits(d); setWithdrawals(w); setUsers(u); setAccounts(pa)
     } catch (e) { setError(errMsg(e)) }
   }, [])
 
@@ -56,12 +58,30 @@ export default function AdminPage() {
     catch { setError('Copy failed. Select the number and copy it manually.') }
   }
 
-  async function saveSettings(e: React.FormEvent) {
+  async function saveAccount(e: React.FormEvent) {
     e.preventDefault()
-    setError(''); setNotice(''); setBusyId('settings')
-    try { await adminSaveSettings(settings); setNotice('Payment settings saved.') }
-    catch (err) { setError(errMsg(err)) } finally { setBusyId(null) }
+    setError(''); setNotice('')
+    if (!accountDraft.label.trim() || !accountDraft.account_name.trim() || !accountDraft.account_number.trim()) {
+      setError('Label, account holder name and account number are required.')
+      return
+    }
+    setBusyId('account-form')
+    try {
+      const input = { ...accountDraft, label: accountDraft.label.trim(), account_name: accountDraft.account_name.trim(), account_number: accountDraft.account_number.trim() }
+      if (editingAccountId) await adminUpdatePaymentAccount(editingAccountId, input)
+      else await adminCreatePaymentAccount(input)
+      setNotice(editingAccountId ? 'Payment account updated.' : 'Payment account added.')
+      setEditingAccountId(null); setAccountDraft(EMPTY_ACCOUNT); await loadAll()
+    } catch (err) { setError(errMsg(err)) } finally { setBusyId(null) }
   }
+
+  function editAccount(account: PaymentAccount) {
+    setEditingAccountId(account.id)
+    setAccountDraft({ kind: account.kind, label: account.label, account_name: account.account_name, account_number: account.account_number, active: account.active, sort_order: account.sort_order })
+    setTab('settings')
+  }
+
+  function cancelAccountEdit() { setEditingAccountId(null); setAccountDraft(EMPTY_ACCOUNT) }
 
   if (!isAdmin) {
     return (
@@ -191,22 +211,40 @@ export default function AdminPage() {
       )}
 
       {tab === 'settings' && (
-        <form onSubmit={saveSettings} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 sm:grid-cols-2">
-          {([
-            ['easypaisa_name', 'EasyPaisa Name'], ['easypaisa_number', 'EasyPaisa Number'],
-            ['jazzcash_name', 'JazzCash Name'], ['jazzcash_number', 'JazzCash Number'],
-            ['bank_name', 'Bank Name'], ['bank_account_name', 'Bank Account Name'], ['bank_account_number', 'Bank Account Number'],
-          ] as const).map(([k, label]) => (
-            <label key={k} className="block">
-              <span className={lab}>{label}</span>
-              <input value={settings[k]} onChange={e => setSettings(s => ({ ...s, [k]: e.target.value }))} className={field} />
+        <section className="space-y-4">
+          <div className="rounded-2xl bg-leaf-soft p-4">
+            <h2 className="font-display text-2xl">Payment accounts</h2>
+            <p className="mt-1 text-sm font-bold text-ink/65">Add any Pakistani wallet or bank account. Only active accounts are shown to users in the Buy modal.</p>
+          </div>
+          <form onSubmit={saveAccount} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 sm:grid-cols-2">
+            <label className="block"><span className={lab}>Wallet / Type</span>
+              <select value={accountDraft.kind} onChange={e => setAccountDraft(s => ({ ...s, kind: e.target.value }))} className={field}>
+                <option value="easypaisa">EasyPaisa</option><option value="jazzcash">JazzCash</option><option value="nayapay">NayaPay</option><option value="sadapay">SadaPay</option><option value="bank">Bank</option><option value="other">Other wallet</option>
+              </select>
             </label>
-          ))}
-          <button type="submit" disabled={busyId === 'settings'}
-            className="font-display flex items-center justify-center gap-2 rounded-2xl bg-leaf py-3 text-lg text-white shadow-[0_4px_0_#146c3a] sm:col-span-2">
-            {busyId === 'settings' && <Loader2 className="h-5 w-5 animate-spin" />} Save Payment Settings
-          </button>
-        </form>
+            <label className="block"><span className={lab}>Display Label</span><input required value={accountDraft.label} onChange={e => setAccountDraft(s => ({ ...s, label: e.target.value }))} placeholder="NayaPay — Main" className={field} /></label>
+            <label className="block"><span className={lab}>Account Holder Name</span><input required value={accountDraft.account_name} onChange={e => setAccountDraft(s => ({ ...s, account_name: e.target.value }))} className={field} /></label>
+            <label className="block"><span className={lab}>Number / IBAN</span><input required value={accountDraft.account_number} onChange={e => setAccountDraft(s => ({ ...s, account_number: e.target.value }))} className={field} /></label>
+            <label className="block"><span className={lab}>Display Order</span><input type="number" min="0" value={accountDraft.sort_order} onChange={e => setAccountDraft(s => ({ ...s, sort_order: Math.max(0, Number(e.target.value) || 0) }))} className={field} /></label>
+            <label className="flex items-center gap-2 self-end pb-3 text-sm font-extrabold"><input type="checkbox" checked={accountDraft.active} onChange={e => setAccountDraft(s => ({ ...s, active: e.target.checked }))} className="h-4 w-4 accent-[#1f9d55]" /> Show this account to users</label>
+            <div className="flex gap-2 sm:col-span-2">
+              <button type="submit" disabled={busyId === 'account-form'} className="font-display flex flex-1 items-center justify-center gap-2 rounded-2xl bg-leaf py-3 text-lg text-white shadow-[0_4px_0_#146c3a]">
+                {busyId === 'account-form' ? <Loader2 className="h-5 w-5 animate-spin" /> : editingAccountId ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                {editingAccountId ? 'Update Account' : 'Add Account'}
+              </button>
+              {editingAccountId && <button type="button" onClick={cancelAccountEdit} className="rounded-2xl bg-black/5 px-4 font-extrabold">Cancel</button>}
+            </div>
+          </form>
+          <div className="space-y-2">
+            {accounts.map(account => (
+              <article key={account.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 ${!account.active ? 'opacity-60' : ''}`}>
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-display text-xl">{account.label}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${account.active ? 'bg-leaf-soft text-leaf-dark' : 'bg-black/5 text-ink/50'}`}>{account.active ? 'Active' : 'Hidden'}</span></div><p className="text-sm font-bold">{account.account_name} · <span className="select-all text-barn">{account.account_number}</span></p></div>
+                <div className="flex gap-2"><button onClick={() => editAccount(account)} className="rounded-xl bg-sky-600 p-2 text-white" aria-label={`Edit ${account.label}`}><Pencil className="h-4 w-4" /></button><button onClick={() => void act(account.id, account.active ? 'Account hidden from users.' : 'Account is now visible to users.', () => adminTogglePaymentAccount(account.id, !account.active))} className="rounded-xl bg-yolk px-3 py-2 text-sm font-extrabold text-white">{account.active ? 'Hide' : 'Show'}</button><button onClick={() => void act(account.id, 'Payment account deleted.', () => adminDeletePaymentAccount(account.id), `Delete ${account.label}?`)} className="rounded-xl bg-red-600 p-2 text-white" aria-label={`Delete ${account.label}`}><Trash2 className="h-4 w-4" /></button></div>
+              </article>
+            ))}
+            {accounts.length === 0 && <p className="rounded-2xl bg-white p-6 text-center text-sm font-bold text-ink/50">No payment accounts yet. Add EasyPaisa, JazzCash, NayaPay, SadaPay, a bank, or any custom wallet above.</p>}
+          </div>
+        </section>
       )}
     </div>
   )

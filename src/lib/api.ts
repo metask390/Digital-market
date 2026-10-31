@@ -1,7 +1,7 @@
 import { getSupabase } from './supabase'
 import { CHICKEN_TIERS } from './chickens'
 import type {
-  AdminUserRow, ChickenType, Deposit, GameSettings, GameUser, UserChicken, Withdrawal,
+  AdminUserRow, ChickenType, Deposit, GameSettings, GameUser, PaymentAccount, UserChicken, Withdrawal,
 } from './types'
 
 const n = (v: unknown) => Number(v ?? 0)
@@ -83,6 +83,37 @@ export async function fetchSettings(): Promise<GameSettings | null> {
   return (data as GameSettings) ?? null
 }
 
+function normalizePaymentAccount(r: Record<string, unknown>): PaymentAccount {
+  return {
+    id: String(r.id),
+    kind: String(r.kind ?? 'other'),
+    label: String(r.label ?? 'Payment account'),
+    account_name: String(r.account_name ?? ''),
+    account_number: String(r.account_number ?? ''),
+    active: Boolean(r.active),
+    sort_order: n(r.sort_order),
+    created_at: r.created_at ? String(r.created_at) : undefined,
+    updated_at: r.updated_at ? String(r.updated_at) : undefined,
+  }
+}
+
+/** Active accounts are dynamic; the legacy settings row remains a fallback until migration is applied. */
+export async function fetchPaymentAccounts(): Promise<PaymentAccount[]> {
+  try {
+    const { data, error } = await getSupabase().from('game_payment_accounts').select('*').eq('active', true).order('sort_order').order('created_at')
+    if (error) throw error
+    return ((data ?? []) as Record<string, unknown>[]).map(normalizePaymentAccount)
+  } catch {
+    const legacy = await fetchSettings().catch(() => null)
+    if (!legacy) return []
+    return [
+      { id: 'legacy-easypaisa', kind: 'easypaisa', label: 'EasyPaisa', account_name: legacy.easypaisa_name, account_number: legacy.easypaisa_number, active: true, sort_order: 10 },
+      { id: 'legacy-jazzcash', kind: 'jazzcash', label: 'JazzCash', account_name: legacy.jazzcash_name, account_number: legacy.jazzcash_number, active: true, sort_order: 20 },
+      { id: 'legacy-bank', kind: 'bank', label: legacy.bank_name || 'Bank', account_name: legacy.bank_account_name, account_number: legacy.bank_account_number, active: true, sort_order: 30 },
+    ].filter(a => a.account_name || a.account_number)
+  }
+}
+
 export async function fetchMyChickens(userId: string): Promise<UserChicken[]> {
   const { data, error } = await getSupabase()
     .from('game_user_chickens').select('*').eq('user_id', userId).order('created_at', { ascending: true })
@@ -142,6 +173,28 @@ export async function requestWithdrawal(args: { amount: number; method: string; 
 // ----------------------------------------------------------------- admin
 export async function adminSaveSettings(s: Omit<GameSettings, 'id'>) {
   const { error } = await getSupabase().from('game_settings').upsert({ id: 1, ...s })
+  if (error) throw error
+}
+
+export async function adminPaymentAccounts(): Promise<PaymentAccount[]> {
+  const { data, error } = await getSupabase().from('game_payment_accounts').select('*').order('sort_order').order('created_at')
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map(normalizePaymentAccount)
+}
+export async function adminCreatePaymentAccount(input: Omit<PaymentAccount, 'id' | 'created_at' | 'updated_at'>) {
+  const { error } = await getSupabase().from('game_payment_accounts').insert(input)
+  if (error) throw error
+}
+export async function adminUpdatePaymentAccount(id: string, input: Omit<PaymentAccount, 'id' | 'created_at' | 'updated_at'>) {
+  const { error } = await getSupabase().from('game_payment_accounts').update(input).eq('id', id)
+  if (error) throw error
+}
+export async function adminTogglePaymentAccount(id: string, active: boolean) {
+  const { error } = await getSupabase().from('game_payment_accounts').update({ active }).eq('id', id)
+  if (error) throw error
+}
+export async function adminDeletePaymentAccount(id: string) {
+  const { error } = await getSupabase().from('game_payment_accounts').delete().eq('id', id)
   if (error) throw error
 }
 
