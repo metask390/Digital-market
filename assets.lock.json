@@ -1,6 +1,37 @@
 {
   "version": 2,
-  "groups": {},
+  "groups": {
+    "models": {
+      "name": "Models",
+      "order": 10
+    },
+    "share": {
+      "name": "Share",
+      "order": 20
+    }
+  },
   "bundles": {},
-  "assets": {}
+  "assets": {
+    "assets/models/chicken.glb": {
+      "path": "/manus-storage/game/sha256/c6ca81e29609ef864bc03d3d46186dd523baf85bf494379407b4f3dbd44bbe49.glb",
+      "sha256": "sha256:c6ca81e29609ef864bc03d3d46186dd523baf85bf494379407b4f3dbd44bbe49",
+      "size": 578752,
+      "assetType": "model",
+      "groupId": "models"
+    },
+    "assets/models/farmhouse.glb": {
+      "path": "/manus-storage/game/sha256/cebce9d2631fe197b4f1f5acf02fbf177d853e67822503bd1d0658e4db79c494.glb",
+      "sha256": "sha256:cebce9d2631fe197b4f1f5acf02fbf177d853e67822503bd1d0658e4db79c494",
+      "size": 1182640,
+      "assetType": "model",
+      "groupId": "models"
+    },
+    "assets/share/favicon.png": {
+      "path": "/manus-storage/game/sha256/0f920c85f793653cb7ccdc6ebbce25aa12b733b03ce2ee794010f75c05b7e0da.png",
+      "sha256": "sha256:0f920c85f793653cb7ccdc6ebbce25aa12b733b03ce2ee794010f75c05b7e0da",
+      "size": 51871,
+      "assetType": "image",
+      "groupId": "share"
+    }
+  }
 }

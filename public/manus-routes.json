@@ -1,0 +1,1 @@
+{"routes":[{"path":"/","title":"Login"},{"path":"/game/","title":"Game"},{"path":"/game/market/","title":"Market"},{"path":"/game/dashboard/","title":"My Farm"},{"path":"/game/profile/","title":"Profile"},{"path":"/game/admin/","title":"Admin"}]}

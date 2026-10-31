@@ -1,4 +1,14 @@
 node_modules/
 dist/
+.next/
 shots/
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
 /.manus-webdev/preview-identity.json
+# Assets restored from assets.lock.json
+/assets/models/chicken.glb
+/assets/models/farmhouse.glb
+/assets/share/favicon.png

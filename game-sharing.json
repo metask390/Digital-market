@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 2,
+  "title": "Egg Market",
+  "description": "Raise 3D chickens, collect golden eggs every 24 hours and sell them at Egg Market.",
+  "assets": { "favicon": "assets/share/favicon.png" }
+}
