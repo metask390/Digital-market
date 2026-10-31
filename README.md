@@ -5,6 +5,7 @@ React Three Fiber / drei, with Supabase (email + password, no OTP) as the backen
 
 ## Setup
 1. In Supabase, run `supabase/schema.sql` in the SQL editor (tables, RLS, atomic RPCs, storage bucket and dynamic payment accounts). If the base tables already exist from an older build, run `supabase/payment-accounts.sql` after the compatible base schema instead.
+   If Auth users already exist but login shows a missing `game_register` function, run `supabase/repair-registration.sql`; it preserves existing records and adds the registration helper.
 2. Authentication > Providers > Email: keep Email on, turn **Confirm email OFF**.
 3. Provide `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.example`).
 4. Sign up in the app, then make yourself admin in the SQL editor:
