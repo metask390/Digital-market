@@ -69,7 +69,8 @@ export async function fetchChickenTypes(): Promise<ChickenType[]> {
     const { data, error } = await getSupabase().from('game_chicken_types').select('*').order('price')
     if (error) throw error
     if (data && data.length) {
-      return data.map(r => ({ id: Number(r.id), name: String(r.name), price: n(r.price), egg_value: n(r.egg_value), color: String(r.color) }))
+      const mapped = data.map(r => ({ id: Number(r.id), name: String(r.name), price: n(r.price), egg_value: n(r.egg_value), color: String(r.color ?? r.model_color ?? '#22c55e') }))
+      if (mapped.every(t => Number.isFinite(t.id))) return mapped
     }
   } catch {
     /* fall through to built-in tiers so the market still renders */
