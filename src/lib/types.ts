@@ -10,7 +10,7 @@ export interface GameUser {
 }
 
 export interface ChickenType {
-  id: number
+  id: string
   name: string
   price: number
   egg_value: number
@@ -20,7 +20,7 @@ export interface ChickenType {
 export interface UserChicken {
   id: string
   user_id: string
-  chicken_type_id: number
+  chicken_type_id: string
   last_collected_at: string
 }
 
@@ -30,7 +30,7 @@ export type WithdrawalStatus = 'pending' | 'completed' | 'rejected'
 export interface Deposit {
   id: string
   user_id: string
-  chicken_type_id: number
+  chicken_type_id: string
   quantity: number
   total_amount: number
   transaction_id: string

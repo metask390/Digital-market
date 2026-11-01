@@ -156,7 +156,7 @@ export default function DashboardPage() {
       {chickens && chickens.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
           {chickens.map((c, i) => {
-            const type = types.find(t => t.id === c.chicken_type_id)
+            const type = types.find(t => String(t.id) === String(c.chicken_type_id))
             if (!type) return null
             return <ChickenCard key={c.id} chicken={c} type={type} index={i} now={now} onCollect={collect} />
           })}

@@ -70,8 +70,8 @@ export async function fetchChickenTypes(): Promise<ChickenType[]> {
     const { data, error } = await getSupabase().from('game_chicken_types').select('*').order('price')
     if (error) throw error
     if (data && data.length) {
-      const mapped = data.map(r => ({ id: Number(r.id), name: String(r.name), price: n(r.price), egg_value: n(r.egg_value), color: String(r.color ?? r.model_color ?? '#22c55e') }))
-      if (mapped.every(t => Number.isFinite(t.id))) return mapped
+      const mapped = data.map(r => ({ id: String(r.id), name: String(r.name), price: n(r.price), egg_value: n(r.egg_value), color: String(r.color ?? r.model_color ?? '#22c55e') }))
+      if (mapped.every(t => t.id.length > 0)) return mapped
     }
   } catch {
     /* fall through to built-in tiers so the market still renders */
@@ -86,13 +86,14 @@ export async function fetchSettings(): Promise<GameSettings | null> {
 }
 
 function normalizePaymentAccount(r: Record<string, unknown>): PaymentAccount {
+  const kind = String(r.kind ?? r.wallet_type ?? 'other')
   return {
     id: String(r.id),
-    kind: String(r.kind ?? 'other'),
-    label: String(r.label ?? 'Payment account'),
+    kind,
+    label: String(r.label ?? r.wallet_type ?? 'Payment account'),
     account_name: String(r.account_name ?? ''),
     account_number: String(r.account_number ?? ''),
-    active: Boolean(r.active),
+    active: Boolean(r.active ?? r.is_active),
     sort_order: n(r.sort_order),
     created_at: r.created_at ? String(r.created_at) : undefined,
     updated_at: r.updated_at ? String(r.updated_at) : undefined,
@@ -102,9 +103,9 @@ function normalizePaymentAccount(r: Record<string, unknown>): PaymentAccount {
 /** Active accounts are dynamic; the legacy settings row remains a fallback until migration is applied. */
 export async function fetchPaymentAccounts(): Promise<PaymentAccount[]> {
   try {
-    const { data, error } = await getSupabase().from('game_payment_accounts').select('*').eq('active', true).order('sort_order').order('created_at')
+    const { data, error } = await getSupabase().from('game_payment_accounts').select('*')
     if (error) throw error
-    return ((data ?? []) as Record<string, unknown>[]).map(normalizePaymentAccount)
+    return ((data ?? []) as Record<string, unknown>[]).map(normalizePaymentAccount).filter(account => account.active)
   } catch {
     const legacy = await fetchSettings().catch(() => null)
     if (!legacy) return []
@@ -132,7 +133,7 @@ export async function fetchMyWithdrawals(userId: string): Promise<Withdrawal[]> 
 
 // --------------------------------------------------------------- actions
 export async function submitDeposit(args: {
-  userId: string; chickenTypeId: number; quantity: number
+  userId: string; chickenTypeId: string; quantity: number
   transactionId: string; senderName: string; screenshot: File
 }) {
   const sb = getSupabase()
@@ -179,21 +180,34 @@ export async function adminSaveSettings(s: Omit<GameSettings, 'id'>) {
 }
 
 export async function adminPaymentAccounts(): Promise<PaymentAccount[]> {
-  const { data, error } = await getSupabase().from('game_payment_accounts').select('*').order('sort_order').order('created_at')
+  const { data, error } = await getSupabase().from('game_payment_accounts').select('*')
   if (error) throw error
   return ((data ?? []) as Record<string, unknown>[]).map(normalizePaymentAccount)
 }
 export async function adminCreatePaymentAccount(input: Omit<PaymentAccount, 'id' | 'created_at' | 'updated_at'>) {
-  const { error } = await getSupabase().from('game_payment_accounts').insert(input)
-  if (error) throw error
+  const sb = getSupabase()
+  const legacy = await sb.from('game_payment_accounts').insert(input)
+  if (!legacy.error) return
+  const modern = await sb.from('game_payment_accounts').insert({
+    wallet_type: input.kind, account_name: input.account_name, account_number: input.account_number, is_active: input.active,
+  })
+  if (modern.error) throw legacy.error
 }
 export async function adminUpdatePaymentAccount(id: string, input: Omit<PaymentAccount, 'id' | 'created_at' | 'updated_at'>) {
-  const { error } = await getSupabase().from('game_payment_accounts').update(input).eq('id', id)
-  if (error) throw error
+  const sb = getSupabase()
+  const legacy = await sb.from('game_payment_accounts').update(input).eq('id', id)
+  if (!legacy.error) return
+  const modern = await sb.from('game_payment_accounts').update({
+    wallet_type: input.kind, account_name: input.account_name, account_number: input.account_number, is_active: input.active,
+  }).eq('id', id)
+  if (modern.error) throw legacy.error
 }
 export async function adminTogglePaymentAccount(id: string, active: boolean) {
-  const { error } = await getSupabase().from('game_payment_accounts').update({ active }).eq('id', id)
-  if (error) throw error
+  const sb = getSupabase()
+  const legacy = await sb.from('game_payment_accounts').update({ active }).eq('id', id)
+  if (!legacy.error) return
+  const modern = await sb.from('game_payment_accounts').update({ is_active: active }).eq('id', id)
+  if (modern.error) throw legacy.error
 }
 export async function adminDeletePaymentAccount(id: string) {
   const { error } = await getSupabase().from('game_payment_accounts').delete().eq('id', id)
@@ -210,7 +224,7 @@ export async function adminPendingDeposits(): Promise<AdminDeposit[]> {
   return (data ?? []).map(r => ({
     ...(r as Deposit),
     total_amount: n(r.total_amount),
-    chicken_name: types.find(t => t.id === r.chicken_type_id)?.name ?? `Type ${r.chicken_type_id}`,
+    chicken_name: types.find(t => String(t.id) === String(r.chicken_type_id))?.name ?? `Type ${r.chicken_type_id}`,
     email: null,
   }))
 }
