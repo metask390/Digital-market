@@ -12,6 +12,7 @@ function normalizeUser(r: Record<string, unknown>): GameUser {
     user_id: String(r.user_id),
     wallet_balance: n(r.wallet_balance),
     egg_stock: n(r.egg_stock),
+    unsold_eggs_value: n(r.unsold_eggs_value ?? r.egg_stock),
     total_invested: n(r.total_invested),
     direct_withdraw_limit: n(r.direct_withdraw_limit),
     referral_withdraw_limit: n(r.referral_withdraw_limit),
@@ -184,8 +185,8 @@ export async function collectEgg(chickenId: string): Promise<number> {
   return n(data)
 }
 
-export async function sellEggs(amount: number): Promise<number> {
-  const { data, error } = await getSupabase().rpc('game_sell_eggs', { p_amount: amount })
+export async function sellEggs(): Promise<number> {
+  const { data, error } = await getSupabase().rpc('game_sell_eggs')
   if (error) throw error
   return n(data)
 }

@@ -24,7 +24,7 @@ function ChickenCard({ chicken, type, index, now, onCollect }: {
   const lastCollectedAt = new Date(chicken.last_collected_at).getTime()
   const elapsed = now - lastCollectedAt
   const left = EGG_COOLDOWN_MS - elapsed
-  const ready = elapsed >= EGG_COOLDOWN_MS
+  const isEggReady = elapsed >= EGG_COOLDOWN_MS
   const [popping, setPopping] = useState(false)
   const [busy, setBusy] = useState(false)
   const progress = Math.min(100, Math.max(0, ((EGG_COOLDOWN_MS - left) / EGG_COOLDOWN_MS) * 100))
@@ -48,12 +48,12 @@ function ChickenCard({ chicken, type, index, now, onCollect }: {
 
       <div className="mx-3 flex items-center justify-center gap-1.5 rounded-full bg-leaf-soft px-2 py-1 text-xs font-extrabold tabular-nums text-leaf-dark">
         <Timer className="h-3.5 w-3.5" aria-hidden />
-        {ready ? 'Egg is ready!' : clock(left)}
+        {isEggReady ? 'Egg is ready!' : clock(left)}
       </div>
 
       {/* Bottom zone: egg appears here once 24 hours have passed */}
       <div className="relative flex h-[76px] flex-col items-center justify-end pb-2">
-        {ready && !popping ? (
+        {isEggReady && !popping ? (
           <button onClick={click} aria-label={`Collect egg worth ${num(type.egg_value)} Rs`} className="flex flex-col items-center">
             <span className="font-display mb-0.5 rounded-full bg-yolk px-2 py-0.5 text-sm leading-none text-white shadow">+{num(type.egg_value)} Rs</span>
             <span className="egg-shape animate-egg-glow cursor-pointer" />
@@ -83,10 +83,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [selling, setSelling] = useState(false)
-  const [collectedValue, setCollectedValue] = useState(profile.egg_stock)
   const now = useNow()
-
-  useEffect(() => { setCollectedValue(profile.egg_stock) }, [profile.egg_stock])
 
   const load = useCallback(async () => {
     try {
@@ -105,10 +102,6 @@ export default function DashboardPage() {
     setError('')
     try {
       const v = await collectEgg(c.id)
-      setCollectedValue(prev => prev + v)
-      setChickens(current => current?.map(item => item.id === c.id
-        ? { ...item, last_collected_at: new Date().toISOString() }
-        : item) ?? current)
       setNotice(`Collected +${num(v)} Rs of eggs`)
       await Promise.all([load(), refresh()])
     } catch (e) {
@@ -119,12 +112,11 @@ export default function DashboardPage() {
   }
 
   async function sell() {
-    if (collectedValue <= 0) return
+    if (profile.unsold_eggs_value <= 0) return
     setError('')
     setSelling(true)
     try {
-      const v = await sellEggs(collectedValue)
-      setCollectedValue(0)
+      await sellEggs()
       setNotice('Eggs sold successfully!')
       await refresh()
     } catch (e) {
@@ -141,9 +133,9 @@ export default function DashboardPage() {
       <section className="mb-3 flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-yolk to-yolk-deep p-3 text-white shadow-md">
         <div className="min-w-0">
           <p className="text-[11px] font-extrabold uppercase tracking-wider text-white/90">Total Eggs Value</p>
-          <p className="font-display text-3xl leading-none drop-shadow-[0_2px_0_rgba(140,60,0,0.4)]">{rs(collectedValue)}</p>
+          <p className="font-display text-3xl leading-none drop-shadow-[0_2px_0_rgba(140,60,0,0.4)]">{rs(profile.unsold_eggs_value)}</p>
         </div>
-        <button onClick={sell} disabled={selling || collectedValue <= 0}
+        <button onClick={sell} disabled={selling || profile.unsold_eggs_value <= 0}
           className="font-display flex shrink-0 items-center gap-1.5 rounded-2xl bg-leaf px-4 py-3 text-base text-white shadow-[0_4px_0_#146c3a] transition active:translate-y-0.5 active:shadow-none disabled:opacity-50">
           {selling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" aria-hidden />} Sell All Eggs
         </button>

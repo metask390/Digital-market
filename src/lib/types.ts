@@ -2,6 +2,7 @@ export interface GameUser {
   user_id: string
   wallet_balance: number
   egg_stock: number
+  unsold_eggs_value: number
   total_invested: number
   direct_withdraw_limit: number
   referral_withdraw_limit: number
