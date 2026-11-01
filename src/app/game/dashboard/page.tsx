@@ -21,9 +21,10 @@ function useNow(intervalMs = 1000) {
 function ChickenCard({ chicken, type, index, now, onCollect }: {
   chicken: UserChicken; type: ChickenType; index: number; now: number; onCollect: (c: UserChicken) => Promise<void>
 }) {
-  const readyAt = new Date(chicken.last_collected_at).getTime() + EGG_COOLDOWN_MS
-  const left = readyAt - now
-  const ready = left <= 0
+  const lastCollectedAt = new Date(chicken.last_collected_at).getTime()
+  const elapsed = now - lastCollectedAt
+  const left = EGG_COOLDOWN_MS - elapsed
+  const ready = elapsed >= EGG_COOLDOWN_MS
   const [popping, setPopping] = useState(false)
   const [busy, setBusy] = useState(false)
   const progress = Math.min(100, Math.max(0, ((EGG_COOLDOWN_MS - left) / EGG_COOLDOWN_MS) * 100))

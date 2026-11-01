@@ -265,7 +265,7 @@ begin
   return amt;
 end $$;
 
--- Withdrawal: min 50, max 1000 per day (Pakistan time). Deducts IMMEDIATELY.
+-- Withdrawal: min 50, max 10000 per day (Pakistan time). Deducts IMMEDIATELY.
 -- Backend-only rule: amount must be covered by direct + referral withdraw limits.
 create or replace function public.game_request_withdrawal(
   p_amount numeric, p_method text, p_account_number text, p_account_name text
@@ -278,13 +278,13 @@ declare
 begin
   u := public.game_lock_active_user(uid);
   if p_amount is null or p_amount < 50 then raise exception 'Minimum withdrawal is 50 Rs'; end if;
-  if p_amount > 1000 then raise exception 'Maximum withdrawal is 1,000 Rs per day'; end if;
+  if p_amount > 10000 then raise exception 'Maximum withdrawal is 10,000 Rs per day'; end if;
   if coalesce(trim(p_account_number), '') = '' or coalesce(trim(p_account_name), '') = '' then
     raise exception 'Account name and number are required';
   end if;
   select coalesce(sum(amount), 0) into today_total from public.game_withdrawals
     where user_id = uid and status <> 'rejected' and created_at >= day_start;
-  if today_total + p_amount > 1000 then raise exception 'Daily withdrawal limit of 1,000 Rs reached'; end if;
+  if today_total + p_amount > 10000 then raise exception 'Daily withdrawal limit of 10,000 Rs reached'; end if;
   if u.wallet_balance < p_amount then raise exception 'Insufficient wallet balance'; end if;
   if p_amount > u.direct_withdraw_limit + u.referral_withdraw_limit then
     raise exception 'Withdrawal is not available for this amount yet. Invest in more chickens to unlock withdrawals.';

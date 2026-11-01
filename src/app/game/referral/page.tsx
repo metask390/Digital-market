@@ -5,8 +5,8 @@ import { useGame } from '@/components/GameProvider'
 import { fetchReferralEarnings } from '@/lib/api'
 import { errMsg, rs } from '@/lib/format'
 
-const SHARE_EN = 'Join Egg Market! A halal digital business. Buy chickens, collect eggs daily, and earn real money. Use my link to start.'
-const SHARE_UR = 'ایگ مارکیٹ جوائن کریں! حلال ڈیجیٹل کاروبار۔ مرغیاں خریدیں، روزانہ انڈے جمع کریں اور اصل پیسے کمائیں۔'
+const SHARE_EN = 'Join Egg Market! A halal digital business. Buy chickens, collect eggs daily, and earn real money. Invite friends and earn 300 Rs.'
+const SHARE_UR = 'ایگ مارکیٹ جوائن کریں! حلال ڈیجیٹل کاروبار۔ مرغیاں خریدیں، روزانہ انڈے جمع کریں اور اصل پیسے کمائیں۔ دوستوں کو انوائٹ کریں اور 300 روپے کمائیں۔'
 
 export default function ReferralPage() {
   const { userId, profile } = useGame()
@@ -22,7 +22,8 @@ export default function ReferralPage() {
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(link)
+      const message = `${SHARE_EN}\n\n${SHARE_UR}\n\n${link}`
+      await navigator.clipboard.writeText(message)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1800)
     } catch { setError('Could not copy. Select the link and copy it manually.') }
@@ -38,10 +39,16 @@ export default function ReferralPage() {
         <p className="mt-2 text-sm font-bold text-white/90">Invite friends to Egg Market and earn 1% daily commission from their activity.</p>
       </section>
 
-      <section className="grid grid-cols-2 gap-3">
-        <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-leaf/10"><p className="text-[11px] font-extrabold uppercase tracking-wide text-leaf-dark">Direct Withdraw Limit</p><p className="mt-2 font-display text-2xl text-ink">{rs(profile.direct_withdraw_limit)} Rs</p><p className="mt-1 text-[11px] font-bold text-ink/50">30% of your investment</p></div>
-        <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-leaf/10"><p className="text-[11px] font-extrabold uppercase tracking-wide text-leaf-dark">Referral Withdraw Limit</p><p className="mt-2 font-display text-2xl text-ink">{rs(profile.referral_withdraw_limit)} Rs</p><p className="mt-1 text-[11px] font-bold text-ink/50">Available from referrals</p></div>
-        <div className="col-span-2 rounded-3xl bg-leaf p-4 text-white shadow-md"><p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-white/80"><Users className="h-3.5 w-3.5" aria-hidden /> Total Referral Earnings</p><p className="mt-1 font-display text-3xl">{rs(earnings)} Rs</p><p className="mt-1 text-xs font-bold text-white/75">Sum of 1% daily commissions earned</p></div>
+      <section>
+        {profile.total_invested > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-leaf/10"><p className="text-[11px] font-extrabold uppercase tracking-wide text-leaf-dark">Direct Withdraw Limit</p><p className="mt-2 font-display text-2xl text-ink">{rs(profile.direct_withdraw_limit)}</p><p className="mt-1 text-[11px] font-bold text-ink/50">30% of your investment</p></div>
+            <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-leaf/10"><p className="text-[11px] font-extrabold uppercase tracking-wide text-leaf-dark">Referral Withdraw Limit</p><p className="mt-2 font-display text-2xl text-ink">{rs(profile.referral_withdraw_limit)}</p><p className="mt-1 text-[11px] font-bold text-ink/50">Available from referrals</p></div>
+          </div>
+        ) : (
+          <div className="my-4 rounded-2xl bg-white p-4 text-center text-sm font-bold text-ink/60 shadow-sm">Please buy a chicken to unlock your withdrawal limits.</div>
+        )}
+        <div className="mt-3 rounded-3xl bg-leaf p-4 text-white shadow-md"><p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-white/80"><Users className="h-3.5 w-3.5" aria-hidden /> Total Referral Earnings</p><p className="mt-1 font-display text-3xl">{rs(earnings)}</p><p className="mt-1 text-xs font-bold text-white/75">Sum of 1% daily commissions earned</p></div>
       </section>
 
       <section className="rounded-3xl bg-white p-4 shadow-md">

@@ -16,4 +16,4 @@ export const CHICKEN_TIERS: ChickenType[] = [
 
 export const EGG_COOLDOWN_MS = 24 * 60 * 60 * 1000
 export const MIN_WITHDRAW = 50
-export const MAX_WITHDRAW_PER_DAY = 1000
+export const MAX_WITHDRAW_PER_DAY = 10000
