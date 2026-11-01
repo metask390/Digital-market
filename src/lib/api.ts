@@ -1,7 +1,7 @@
 import { getSupabase } from './supabase'
 import { CHICKEN_TIERS } from './chickens'
 import type {
-  AdminUserRow, ChickenType, Deposit, GameSettings, GameUser, PaymentAccount, UserChicken, Withdrawal,
+  AdminUserRow, ChickenType, Deposit, GameNotification, GameSettings, GameUser, PaymentAccount, UserChicken, Withdrawal,
 } from './types'
 
 const MEDIA_BUCKET = 'game-media'
@@ -131,6 +131,26 @@ export async function fetchMyWithdrawals(userId: string): Promise<Withdrawal[]> 
   return (data ?? []).map(r => ({ ...(r as Withdrawal), amount: n(r.amount) }))
 }
 
+export async function fetchReferralEarnings(userId: string): Promise<number> {
+  const { data, error } = await getSupabase()
+    .from('game_referral_earnings').select('amount').eq('referrer_id', userId)
+  if (error) throw error
+  return (data ?? []).reduce((total, row) => total + n((row as { amount?: unknown }).amount), 0)
+}
+
+export async function fetchNotifications(userId: string): Promise<GameNotification[]> {
+  const { data, error } = await getSupabase()
+    .from('game_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map(row => ({
+    id: String(row.id),
+    user_id: String(row.user_id),
+    title: String(row.title ?? 'Notification'),
+    message: String(row.message ?? ''),
+    created_at: String(row.created_at ?? ''),
+  }))
+}
+
 // --------------------------------------------------------------- actions
 export async function submitDeposit(args: {
   userId: string; chickenTypeId: string; quantity: number
@@ -160,8 +180,8 @@ export async function collectEgg(chickenId: string): Promise<number> {
   return n(data)
 }
 
-export async function sellEggs(): Promise<number> {
-  const { data, error } = await getSupabase().rpc('game_sell_eggs')
+export async function sellEggs(amount: number): Promise<number> {
+  const { data, error } = await getSupabase().rpc('game_sell_eggs', { p_amount: amount })
   if (error) throw error
   return n(data)
 }

@@ -114,7 +114,7 @@ export default function DashboardPage() {
     setError('')
     setSelling(true)
     try {
-      const v = await sellEggs()
+      const v = await sellEggs(stock)
       setNotice(`Sold eggs for ${rs(v)}. Added to your wallet!`)
       await refresh()
     } catch (e) {

@@ -51,6 +51,14 @@ export interface Withdrawal {
   created_at: string
 }
 
+export interface GameNotification {
+  id: string
+  user_id: string
+  title: string
+  message: string
+  created_at: string
+}
+
 export interface GameSettings {
   id: number
   easypaisa_name: string

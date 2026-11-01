@@ -47,6 +47,9 @@ export default function ProfilePage() {
     const amt = Number(amount)
     if (!Number.isFinite(amt) || amt < MIN_WITHDRAW) return setError(`Minimum withdrawal is ${MIN_WITHDRAW} Rs.`)
     if (amt > MAX_WITHDRAW_PER_DAY) return setError(`Maximum withdrawal is ${num(MAX_WITHDRAW_PER_DAY)} Rs per day.`)
+    const availableLimit = profile.direct_withdraw_limit + profile.referral_withdraw_limit
+    if (availableLimit <= 0) return setError('آپ کی وڈراول لیمٹ ختم ہو گئی ہے۔ مزید کمائی کے لیے اپنے دوستوں کو انوائٹ کریں۔')
+    if (amt > availableLimit) return setError(`Withdrawal limit available is ${rs(availableLimit)} Rs.`)
     if (amt > profile.wallet_balance) return setError('Insufficient wallet balance.')
     if (!accNo.trim() || !accName.trim()) return setError('Enter your account number and account name.')
     setBusy(true)
@@ -93,6 +96,11 @@ export default function ProfilePage() {
       </section>
 
       <section className="rounded-3xl bg-white p-4 shadow-md">
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <div className="rounded-2xl bg-leaf-soft p-3"><p className="text-[10px] font-extrabold uppercase tracking-wide text-leaf-dark">Direct limit</p><p className="font-display text-xl">{rs(profile.direct_withdraw_limit)} Rs</p></div>
+          <div className="rounded-2xl bg-yolk/15 p-3"><p className="text-[10px] font-extrabold uppercase tracking-wide text-yolk-deep">Referral limit</p><p className="font-display text-xl">{rs(profile.referral_withdraw_limit)} Rs</p></div>
+        </div>
+        {profile.direct_withdraw_limit + profile.referral_withdraw_limit <= 0 && <p className="mb-3 rounded-2xl bg-red-50 px-3 py-2 text-right text-sm font-bold leading-6 text-red-700" dir="rtl">آپ کی وڈراول لیمٹ ختم ہو گئی ہے۔ مزید کمائی کے لیے اپنے دوستوں کو انوائٹ کریں۔</p>}
         <h2 className="font-display flex items-center gap-2 text-xl"><ArrowDownToLine className="h-5 w-5 text-leaf" aria-hidden /> Withdraw</h2>
         <p className="text-xs font-bold text-ink/60">Min {MIN_WITHDRAW} Rs · Max {num(MAX_WITHDRAW_PER_DAY)} Rs per day. The amount is deducted immediately.</p>
         <form onSubmit={submit} className="mt-3 space-y-3">
@@ -119,7 +127,7 @@ export default function ProfilePage() {
           </label>
           {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>}
           {ok && <p role="status" className="rounded-xl bg-leaf-soft px-3 py-2 text-sm font-bold text-leaf-dark">{ok}</p>}
-          <button type="submit" disabled={busy}
+          <button type="submit" disabled={busy || profile.direct_withdraw_limit + profile.referral_withdraw_limit <= 0}
             className="font-display flex w-full items-center justify-center gap-2 rounded-2xl bg-leaf py-3.5 text-lg text-white shadow-[0_5px_0_#146c3a] transition active:translate-y-1 active:shadow-none disabled:opacity-60">
             {busy && <Loader2 className="h-5 w-5 animate-spin" />} Request Withdrawal
           </button>
