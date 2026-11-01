@@ -7,6 +7,7 @@ import { errMsg, num } from '@/lib/format'
 import type { ChickenType, PaymentAccount } from '@/lib/types'
 
 const MAX_FILE = 8 * 1024 * 1024
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function Row({ label, name, number }: { label: string; name: string; number: string }) {
   if (!name && !number) return null
@@ -28,13 +29,17 @@ export function BuyModal({ chicken, onCloseAction, onDoneAction }: {
   const [sender, setSender] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [accounts, setAccounts] = useState<PaymentAccount[]>([])
+  const [accountsLoading, setAccountsLoading] = useState(true)
   const [settingsErr, setSettingsErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
   useEffect(() => {
-    fetchPaymentAccounts().then(setAccounts).catch(e => setSettingsErr(errMsg(e, 'Could not load payment details.')))
+    fetchPaymentAccounts()
+      .then(setAccounts)
+      .catch(e => setSettingsErr(errMsg(e, 'Could not load payment details.')))
+      .finally(() => setAccountsLoading(false))
   }, [])
 
   const quantity = useMemo(() => {
@@ -50,6 +55,7 @@ export function BuyModal({ chicken, onCloseAction, onDoneAction }: {
     if (quantity > 100000) return setError('That quantity is too large.')
     if (!txn.trim() || !sender.trim()) return setError('Transaction ID and sender name are required.')
     if (!file) return setError('Please upload your payment screenshot.')
+    if (!UUID_RE.test(chicken.id)) return setError('Chicken catalog is not synced with the database. Please refresh and try again.')
     if (!file.type.startsWith('image/')) return setError('Screenshot must be an image file.')
     if (file.size > MAX_FILE) return setError('Screenshot must be smaller than 8 MB.')
     setBusy(true)
@@ -99,9 +105,9 @@ export function BuyModal({ chicken, onCloseAction, onDoneAction }: {
             <section className="space-y-2 rounded-2xl bg-leaf-soft p-3">
               <p className="text-xs font-extrabold uppercase tracking-wider text-leaf-dark">Send exactly {num(total)} Rs to</p>
               {accounts.map(account => <Row key={account.id} label={account.label} name={account.account_name} number={account.account_number} />)}
-              {!accounts.length && !settingsErr && <p className="text-sm font-bold">Loading payment details...</p>}
+              {accountsLoading && <p className="flex items-center gap-2 text-sm font-bold"><Loader2 className="h-4 w-4 animate-spin" /> Loading payment details...</p>}
               {settingsErr && <p className="text-sm font-bold text-red-700">{settingsErr}</p>}
-              {!accounts.length && settingsErr && <p className="text-sm font-bold text-red-700">Payment details have not been set up yet. Please try again later.</p>}
+              {!accountsLoading && !accounts.length && !settingsErr && <p className="text-sm font-bold text-red-700">Payment details have not been set up yet. Please try again later.</p>}
             </section>
 
             <label className="block">
