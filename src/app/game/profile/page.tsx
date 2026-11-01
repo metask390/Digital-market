@@ -96,15 +96,13 @@ export default function ProfilePage() {
       </section>
 
       <section className="rounded-3xl bg-white p-4 shadow-md">
-        {profile.total_invested > 0 ? (
+        {profile.total_invested > 0 && (
           <div className="mb-3 grid grid-cols-2 gap-2">
             <div className="rounded-2xl bg-leaf-soft p-3"><p className="text-[10px] font-extrabold uppercase tracking-wide text-leaf-dark">Direct limit</p><p className="font-display text-xl">{rs(profile.direct_withdraw_limit)}</p></div>
             <div className="rounded-2xl bg-yolk/15 p-3"><p className="text-[10px] font-extrabold uppercase tracking-wide text-yolk-deep">Referral limit</p><p className="font-display text-xl">{rs(profile.referral_withdraw_limit)}</p></div>
           </div>
-        ) : (
-          <p className="mb-3 rounded-2xl bg-black/5 px-3 py-3 text-center text-sm font-bold text-ink/60">Please buy a chicken to unlock your withdrawal limits.</p>
         )}
-        {profile.direct_withdraw_limit + profile.referral_withdraw_limit <= 0 && <p className="mb-3 rounded-2xl bg-red-50 px-3 py-2 text-right text-sm font-bold leading-6 text-red-700" dir="rtl">آپ کی وڈراول لیمٹ ختم ہو گئی ہے۔ مزید کمائی کے لیے اپنے دوستوں کو انوائٹ کریں۔</p>}
+        {profile.total_invested > 0 && profile.direct_withdraw_limit + profile.referral_withdraw_limit <= 0 && <p className="mb-3 rounded-2xl bg-red-50 px-3 py-2 text-right text-sm font-bold leading-6 text-red-700" dir="rtl">آپ کی وڈراول لیمٹ ختم ہو گئی ہے۔ مزید کمائی کے لیے اپنے دوستوں کو انوائٹ کریں۔</p>}
         <h2 className="font-display flex items-center gap-2 text-xl"><ArrowDownToLine className="h-5 w-5 text-leaf" aria-hidden /> Withdraw</h2>
         <p className="text-xs font-bold text-ink/60">Min {MIN_WITHDRAW} Rs · Max {num(MAX_WITHDRAW_PER_DAY)} Rs per day. The amount is deducted immediately.</p>
         <form onSubmit={submit} className="mt-3 space-y-3">

@@ -40,13 +40,11 @@ export default function ReferralPage() {
       </section>
 
       <section>
-        {profile.total_invested > 0 ? (
+        {profile.total_invested > 0 && (
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-leaf/10"><p className="text-[11px] font-extrabold uppercase tracking-wide text-leaf-dark">Direct Withdraw Limit</p><p className="mt-2 font-display text-2xl text-ink">{rs(profile.direct_withdraw_limit)}</p><p className="mt-1 text-[11px] font-bold text-ink/50">30% of your investment</p></div>
             <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-leaf/10"><p className="text-[11px] font-extrabold uppercase tracking-wide text-leaf-dark">Referral Withdraw Limit</p><p className="mt-2 font-display text-2xl text-ink">{rs(profile.referral_withdraw_limit)}</p><p className="mt-1 text-[11px] font-bold text-ink/50">Available from referrals</p></div>
           </div>
-        ) : (
-          <div className="my-4 rounded-2xl bg-white p-4 text-center text-sm font-bold text-ink/60 shadow-sm">Please buy a chicken to unlock your withdrawal limits.</div>
         )}
         <div className="mt-3 rounded-3xl bg-leaf p-4 text-white shadow-md"><p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-white/80"><Users className="h-3.5 w-3.5" aria-hidden /> Total Referral Earnings</p><p className="mt-1 font-display text-3xl">{rs(earnings)}</p><p className="mt-1 text-xs font-bold text-white/75">Sum of 1% daily commissions earned</p></div>
       </section>
