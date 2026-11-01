@@ -217,15 +217,22 @@ export async function adminDeletePaymentAccount(id: string) {
 export interface AdminDeposit extends Deposit { chicken_name: string; email: string | null }
 
 export async function adminPendingDeposits(): Promise<AdminDeposit[]> {
-  const sb = getSupabase()
-  const { data, error } = await sb.from('game_deposits').select('*').eq('status', 'pending').order('created_at', { ascending: true })
+  const { data, error } = await getSupabase().rpc('game_admin_deposits')
   if (error) throw error
   const types = await fetchChickenTypes()
-  return (data ?? []).map(r => ({
-    ...(r as Deposit),
-    total_amount: n(r.total_amount),
-    chicken_name: types.find(t => String(t.id) === String(r.chicken_type_id))?.name ?? `Type ${r.chicken_type_id}`,
-    email: null,
+  return ((data ?? []) as Record<string, unknown>[]).map(r => ({
+    id: String(r.id),
+    user_id: String(r.user_id),
+    chicken_type_id: String(r.chicken_type_id),
+    quantity: n(r.quantity),
+    total_amount: n(r.total_amount ?? r.amount),
+    transaction_id: String(r.transaction_id ?? ''),
+    sender_name: String(r.sender_name ?? ''),
+    screenshot_url: r.screenshot_url ? String(r.screenshot_url) : null,
+    status: (r.status ?? 'pending') as Deposit['status'],
+    created_at: String(r.created_at ?? ''),
+    chicken_name: String(r.chicken_name ?? types.find(t => String(t.id) === String(r.chicken_type_id))?.name ?? `Type ${r.chicken_type_id}`),
+    email: r.email ? String(r.email) : (r.user_email ? String(r.user_email) : null),
   }))
 }
 
@@ -237,10 +244,18 @@ export async function adminScreenshotUrl(path: string): Promise<string | null> {
 }
 
 export async function adminPendingWithdrawals(): Promise<Withdrawal[]> {
-  const { data, error } = await getSupabase()
-    .from('game_withdrawals').select('*').eq('status', 'pending').order('created_at', { ascending: true })
+  const { data, error } = await getSupabase().rpc('game_admin_withdrawals')
   if (error) throw error
-  return (data ?? []).map(r => ({ ...(r as Withdrawal), amount: n(r.amount) }))
+  return ((data ?? []) as Record<string, unknown>[]).map(r => ({
+    id: String(r.id),
+    user_id: String(r.user_id),
+    amount: n(r.amount),
+    method: String(r.method ?? ''),
+    account_number: String(r.account_number ?? ''),
+    account_name: String(r.account_name ?? ''),
+    status: (r.status ?? 'pending') as Withdrawal['status'],
+    created_at: String(r.created_at ?? ''),
+  }))
 }
 
 export async function adminUsers(): Promise<AdminUserRow[]> {
@@ -248,11 +263,11 @@ export async function adminUsers(): Promise<AdminUserRow[]> {
   if (error) throw error
   return ((data ?? []) as Record<string, unknown>[]).map(r => ({
     user_id: String(r.user_id),
-    email: (r.email as string) ?? null,
+    email: (r.email as string | undefined) ?? (r.user_email as string | undefined) ?? null,
     wallet_balance: n(r.wallet_balance),
     total_invested: n(r.total_invested),
-    is_blocked: Boolean(r.is_blocked),
-    chickens: n(r.chickens),
+    is_blocked: Boolean(r.is_blocked ?? r.blocked),
+    chickens: n(r.chickens ?? r.total_chickens ?? r.chicken_count),
     created_at: String(r.created_at),
   }))
 }
