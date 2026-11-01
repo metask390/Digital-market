@@ -83,7 +83,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [selling, setSelling] = useState(false)
+  const [collectedValue, setCollectedValue] = useState(profile.egg_stock)
   const now = useNow()
+
+  useEffect(() => { setCollectedValue(profile.egg_stock) }, [profile.egg_stock])
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +105,10 @@ export default function DashboardPage() {
     setError('')
     try {
       const v = await collectEgg(c.id)
+      setCollectedValue(prev => prev + v)
+      setChickens(current => current?.map(item => item.id === c.id
+        ? { ...item, last_collected_at: new Date().toISOString() }
+        : item) ?? current)
       setNotice(`Collected +${num(v)} Rs of eggs`)
       await Promise.all([load(), refresh()])
     } catch (e) {
@@ -112,11 +119,13 @@ export default function DashboardPage() {
   }
 
   async function sell() {
+    if (collectedValue <= 0) return
     setError('')
     setSelling(true)
     try {
-      const v = await sellEggs(stock)
-      setNotice(`Sold eggs for ${rs(v)}. Added to your wallet!`)
+      const v = await sellEggs(collectedValue)
+      setCollectedValue(0)
+      setNotice('Eggs sold successfully!')
       await refresh()
     } catch (e) {
       setError(errMsg(e))
@@ -125,7 +134,6 @@ export default function DashboardPage() {
     }
   }
 
-  const stock = profile.egg_stock
 
   return (
     <ViewCanvasHost>
@@ -133,9 +141,9 @@ export default function DashboardPage() {
       <section className="mb-3 flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-yolk to-yolk-deep p-3 text-white shadow-md">
         <div className="min-w-0">
           <p className="text-[11px] font-extrabold uppercase tracking-wider text-white/90">Total Eggs Value</p>
-          <p className="font-display text-3xl leading-none drop-shadow-[0_2px_0_rgba(140,60,0,0.4)]">{rs(stock)}</p>
+          <p className="font-display text-3xl leading-none drop-shadow-[0_2px_0_rgba(140,60,0,0.4)]">{rs(collectedValue)}</p>
         </div>
-        <button onClick={sell} disabled={selling || stock <= 0}
+        <button onClick={sell} disabled={selling || collectedValue <= 0}
           className="font-display flex shrink-0 items-center gap-1.5 rounded-2xl bg-leaf px-4 py-3 text-base text-white shadow-[0_4px_0_#146c3a] transition active:translate-y-0.5 active:shadow-none disabled:opacity-50">
           {selling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" aria-hidden />} Sell All Eggs
         </button>
