@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Ban, Check, CheckCircle2, Copy, Eye, Loader2, Pencil, Plus, ShieldAlert, Trash2, X } from 'lucide-react'
 import { useGame } from '@/components/GameProvider'
 import {
@@ -18,7 +19,8 @@ const EMPTY_ACCOUNT: AccountDraft = {
 }
 
 export default function AdminPage() {
-  const { isAdmin } = useGame()
+  const router = useRouter()
+  const { email, isAdmin } = useGame()
   const [tab, setTab] = useState<Tab>('deposits')
   const [deposits, setDeposits] = useState<AdminDeposit[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
@@ -38,7 +40,12 @@ export default function AdminPage() {
     } catch (e) { setError(errMsg(e)) }
   }, [])
 
-  useEffect(() => { if (isAdmin) void loadAll() }, [isAdmin, loadAll])
+  const exactAdmin = email.trim().toLowerCase() === 'muhammaddanyal4545@gmail.com'
+
+  useEffect(() => {
+    if (!exactAdmin) router.replace('/game/dashboard/')
+    else void loadAll()
+  }, [exactAdmin, loadAll, router])
 
   async function act(id: string, label: string, fn: () => Promise<void>, confirmMsg?: string) {
     if (confirmMsg && !window.confirm(confirmMsg)) return
@@ -83,7 +90,7 @@ export default function AdminPage() {
 
   function cancelAccountEdit() { setEditingAccountId(null); setAccountDraft(EMPTY_ACCOUNT) }
 
-  if (!isAdmin) {
+  if (!isAdmin || !exactAdmin) {
     return (
       <div className="mx-auto mt-16 flex max-w-sm flex-col items-center gap-3 text-center">
         <ShieldAlert className="h-14 w-14 text-barn" />

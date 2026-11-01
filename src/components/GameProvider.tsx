@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { getSupabase, supabaseConfigured } from '@/lib/supabase'
-import { fetchIsAdmin, fetchProfile, registerGameUser, signOut } from '@/lib/api'
+import { fetchProfile, registerGameUser, signOut } from '@/lib/api'
 import type { GameUser } from '@/lib/types'
 import { errMsg } from '@/lib/format'
 
@@ -44,7 +44,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       if (!p) throw new Error('Could not load your farm. Has the database schema been installed?')
       setProfile(p)
-      setIsAdmin(await fetchIsAdmin())
+      // The admin navigation is intentionally restricted to this exact account.
+      // Database RPCs still enforce authorization for every money-moving action.
+      setIsAdmin((s.user.email ?? '').trim().toLowerCase() === 'muhammaddanyal4545@gmail.com')
       setState('ready')
     } catch (e) {
       setError(errMsg(e))
