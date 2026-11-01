@@ -277,7 +277,7 @@ declare
   today_total numeric; take_direct numeric; take_ref numeric;
 begin
   u := public.game_lock_active_user(uid);
-  if p_amount is null or p_amount < 50 then raise exception 'Minimum withdrawal is 50 Rs'; end if;
+  if p_amount is null or p_amount < 5 then raise exception 'Minimum withdrawal is 5 Rs'; end if;
   if p_amount > 10000 then raise exception 'Maximum withdrawal is 10,000 Rs per day'; end if;
   if coalesce(trim(p_account_number), '') = '' or coalesce(trim(p_account_name), '') = '' then
     raise exception 'Account name and number are required';
