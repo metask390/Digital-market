@@ -7,7 +7,6 @@ import { errMsg, num } from '@/lib/format'
 import type { ChickenType, PaymentAccount } from '@/lib/types'
 
 const MAX_FILE = 8 * 1024 * 1024
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function Row({ label, name, number }: { label: string; name: string; number: string }) {
   if (!name && !number) return null
@@ -55,7 +54,6 @@ export function BuyModal({ chicken, onCloseAction, onDoneAction }: {
     if (quantity > 100000) return setError('That quantity is too large.')
     if (!txn.trim() || !sender.trim()) return setError('Transaction ID and sender name are required.')
     if (!file) return setError('Please upload your payment screenshot.')
-    if (!UUID_RE.test(chicken.id)) return setError('Chicken catalog is not synced with the database. Please refresh and try again.')
     if (!file.type.startsWith('image/')) return setError('Screenshot must be an image file.')
     if (file.size > MAX_FILE) return setError('Screenshot must be smaller than 8 MB.')
     setBusy(true)
