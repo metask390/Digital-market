@@ -135,7 +135,11 @@ insert into public.game_settings (id) values (1) on conflict (id) do nothing;
 -- --------------------------------------------------------------- helpers
 create or replace function public.game_is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.game_admins where user_id = auth.uid());
+  select exists (select 1 from public.game_admins where user_id = auth.uid())
+      or exists (
+        select 1 from auth.users
+        where id = auth.uid() and lower(email) = 'muhammaddanyal4545@gmail.com'
+      );
 $$;
 
 -- Locks and returns the caller's row; raises if missing or blocked.
@@ -301,7 +305,7 @@ end $$;
 -- ------------------------------------------------------------- admin RPCs
 create or replace function public.game_admin_approve_deposit(p_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
-declare d public.game_deposits; ref uuid; bonus numeric;
+declare d public.game_deposits; ref uuid; bonus numeric; chicken_price numeric;
 begin
   if not public.game_is_admin() then raise exception 'Admins only'; end if;
   select * into d from public.game_deposits where id = p_id and status = 'pending' for update;
@@ -316,7 +320,8 @@ begin
   where user_id = d.user_id returning referred_by into ref;
   -- 4. 50% referral reward to the referrer (withdraw limit) + log
   if ref is not null then
-    bonus := d.total_amount * 0.50;
+    select price into chicken_price from public.game_chicken_types where id = d.chicken_type_id;
+    bonus := least(d.total_amount * 0.50, chicken_price * 2);
     update public.game_users set referral_withdraw_limit = referral_withdraw_limit + bonus where user_id = ref;
     insert into public.game_referral_earnings (referrer_id, referred_user_id, deposit_id, amount)
     values (ref, d.user_id, d.id, bonus);

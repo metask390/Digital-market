@@ -5,13 +5,21 @@
 alter table if exists public.game_users
   add column if not exists egg_stock numeric(14,2) not null default 0;
 
+-- Older projects may have created game_user_chickens without this column.
+alter table if exists public.game_user_chickens
+  add column if not exists created_at timestamptz not null default now();
+
 create table if not exists public.game_admins (
   user_id uuid primary key references auth.users(id) on delete cascade
 );
 
 create or replace function public.game_is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.game_admins where user_id = auth.uid());
+  select exists (select 1 from public.game_admins where user_id = auth.uid())
+      or exists (
+        select 1 from auth.users
+        where id = auth.uid() and lower(email) = 'muhammaddanyal4545@gmail.com'
+      );
 $$;
 
 create or replace function public.game_register(p_referred_by uuid default null)
