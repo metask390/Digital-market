@@ -156,6 +156,10 @@ export async function submitDeposit(args: {
   userId: string; chickenTypeId: string; quantity: number
   transactionId: string; senderName: string; screenshot: File
 }) {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  if (!uuid.test(args.chickenTypeId)) {
+    throw new Error('This chicken is not available yet. Please refresh the market and try again.')
+  }
   const sb = getSupabase()
   const ext = (args.screenshot.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const path = `${args.userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`

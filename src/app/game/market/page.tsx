@@ -10,7 +10,7 @@ import type { ChickenType } from '@/lib/types'
 
 export default function MarketPage() {
   const [types, setTypes] = useState<ChickenType[]>(CHICKEN_TIERS)
-  const [buying, setBuying] = useState<ChickenType | null>(null)
+  const [selectedChicken, setSelectedChicken] = useState<ChickenType | null>(null)
   const [toast, setToast] = useState('')
 
   useEffect(() => { fetchChickenTypes().then(setTypes).catch(() => undefined) }, [])
@@ -43,7 +43,7 @@ export default function MarketPage() {
             <div className="px-3 pb-3 text-center">
               <h2 className="font-display text-lg leading-tight">{t.name}</h2>
               <p className="text-[11px] font-bold text-ink/60">lays {num(t.egg_value)} Rs / egg</p>
-              <button onClick={() => { setToast(''); setBuying(t) }}
+              <button onClick={() => { setToast(''); setSelectedChicken(t) }}
                 className="font-display mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-leaf py-2 text-base text-white shadow-[0_4px_0_#146c3a] transition active:translate-y-0.5 active:shadow-none">
                 <Coins className="h-4 w-4" aria-hidden /> Buy {num(t.price)} Rs
               </button>
@@ -52,9 +52,9 @@ export default function MarketPage() {
         ))}
       </div>
 
-      {buying && (
-        <BuyModal chicken={buying} onCloseAction={() => setBuying(null)}
-          onDoneAction={msg => { setBuying(null); setToast(msg); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+      {selectedChicken && (
+        <BuyModal chicken={selectedChicken} onCloseAction={() => setSelectedChicken(null)}
+          onDoneAction={msg => { setSelectedChicken(null); setToast(msg); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       )}
     </ViewCanvasHost>
   )
