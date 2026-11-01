@@ -4,6 +4,7 @@ import type {
   AdminUserRow, ChickenType, Deposit, GameSettings, GameUser, PaymentAccount, UserChicken, Withdrawal,
 } from './types'
 
+const MEDIA_BUCKET = 'game-media'
 const n = (v: unknown) => Number(v ?? 0)
 
 function normalizeUser(r: Record<string, unknown>): GameUser {
@@ -137,7 +138,7 @@ export async function submitDeposit(args: {
   const sb = getSupabase()
   const ext = (args.screenshot.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const path = `${args.userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`
-  const up = await sb.storage.from('game-screenshots').upload(path, args.screenshot, { contentType: args.screenshot.type || 'image/jpeg' })
+  const up = await sb.storage.from(MEDIA_BUCKET).upload(`deposits/${path}`, args.screenshot, { contentType: args.screenshot.type || 'image/jpeg' })
   if (up.error) throw up.error
   const { error } = await sb.rpc('game_create_deposit', {
     p_chicken_type_id: args.chickenTypeId,
@@ -147,7 +148,7 @@ export async function submitDeposit(args: {
     p_screenshot_url: path,
   })
   if (error) {
-    await sb.storage.from('game-screenshots').remove([path]).catch(() => undefined)
+    await sb.storage.from(MEDIA_BUCKET).remove([`deposits/${path}`]).catch(() => undefined)
     throw error
   }
 }
@@ -215,7 +216,8 @@ export async function adminPendingDeposits(): Promise<AdminDeposit[]> {
 }
 
 export async function adminScreenshotUrl(path: string): Promise<string | null> {
-  const { data, error } = await getSupabase().storage.from('game-screenshots').createSignedUrl(path, 600)
+  const storagePath = path.startsWith('deposits/') ? path : `deposits/${path}`
+  const { data, error } = await getSupabase().storage.from(MEDIA_BUCKET).createSignedUrl(storagePath, 600)
   if (error) return null
   return data.signedUrl
 }
