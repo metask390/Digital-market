@@ -18,6 +18,19 @@ function useNow(intervalMs = 1000) {
   return now
 }
 
+function localDateKey(value: number | string) {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function formatCountdown(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
+}
+
 function FillingEgg({ progress, ready, value }: { progress: number; ready: boolean; value: number }) {
   return (
     <div className="flex flex-col items-center gap-1.5" aria-label={ready ? `Egg ready to collect, worth ${num(value)} Rs` : `Egg filling, ${Math.round(progress)} percent complete`}>
@@ -35,14 +48,14 @@ function FillingEgg({ progress, ready, value }: { progress: number; ready: boole
 function ChickenCard({ chicken, type, index, now, onCollect }: {
   chicken: UserChicken; type: ChickenType; index: number; now: number; onCollect: (c: UserChicken) => Promise<void>
 }) {
-  const lastCollectedAt = new Date(chicken.last_collected_at).getTime()
-  const elapsed = now - lastCollectedAt
-  const isEggReady = elapsed >= EGG_COOLDOWN_MS
+  const isEggReady = localDateKey(chicken.last_collected_at) !== localDateKey(now)
   const [popping, setPopping] = useState(false)
   const [busy, setBusy] = useState(false)
   const midnight = new Date(now)
-  midnight.setHours(0, 0, 0, 0)
-  const dailyProgress = Math.min(100, Math.max(0, ((now - midnight.getTime()) / EGG_COOLDOWN_MS) * 100))
+  midnight.setHours(24, 0, 0, 0)
+  const midnightCountdown = formatCountdown(midnight.getTime() - now)
+  const todayStart = new Date(now)
+  todayStart.setHours(0, 0, 0, 0)
 
   async function click() {
     if (busy) return
@@ -62,22 +75,29 @@ function ChickenCard({ chicken, type, index, now, onCollect }: {
         <span className="ml-1 shrink-0 text-[10px] font-extrabold text-ink/50">#{index + 1}</span>
       </div>
 
+      <div className="mx-3 mt-2 rounded-full bg-leaf-soft px-2 py-1 text-center text-[10px] font-extrabold tabular-nums text-leaf-dark">
+        Midnight in {midnightCountdown}
+      </div>
+
       <ChickenView color={type.color} phase={index * 1.3} height={1.15} className="h-28 w-full" />
 
       {/* The filling egg follows the daily midnight cycle; the RPC remains the source of truth for collection. */}
-      <div className="relative flex h-[104px] flex-col items-center justify-end pb-2">
+      <div className="relative flex h-[112px] flex-col items-center justify-end pb-2">
         {isEggReady && !popping ? (
-          <button onClick={click} aria-label={`Collect egg worth ${num(type.egg_value)} Rs`} className="flex flex-col items-center">
+          <div className="relative">
             <span className="font-display mb-0.5 rounded-full bg-yolk px-2 py-0.5 text-sm leading-none text-white shadow">+{num(type.egg_value)} Rs</span>
             <FillingEgg progress={100} ready value={type.egg_value} />
-          </button>
+            <button type="button" onClick={click} disabled={busy} aria-label={`Claim egg worth ${num(type.egg_value)} Rs`} className="absolute -top-3 left-1/2 rounded-full bg-red-600 px-3 py-1 text-xs font-extrabold text-white shadow-[0_3px_0_#991b1b] transition hover:bg-red-700 active:translate-y-0.5 active:shadow-none disabled:opacity-60">
+              {busy ? 'Claiming…' : 'Claim'}
+            </button>
+          </div>
         ) : popping ? (
           <span className="flex flex-col items-center animate-egg-pop">
             <span className="font-display mb-0.5 rounded-full bg-yolk px-2 py-0.5 text-sm leading-none text-white">+{num(type.egg_value)} Rs</span>
             <FillingEgg progress={100} ready value={type.egg_value} />
           </span>
         ) : (
-          <FillingEgg progress={dailyProgress} value={type.egg_value} ready={false} />
+          <FillingEgg progress={Math.min(100, Math.max(0, ((now - todayStart.getTime()) / EGG_COOLDOWN_MS) * 100))} value={type.egg_value} ready={false} />
         )}
       </div>
     </article>
