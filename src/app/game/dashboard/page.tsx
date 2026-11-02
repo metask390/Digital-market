@@ -1,12 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
-import { Coins, Loader2, Timer } from 'lucide-react'
+import { Coins, Loader2 } from 'lucide-react'
 import { useGame } from '@/components/GameProvider'
 import { ChickenView, ViewCanvasHost } from '@/components/three/ViewCanvas'
 import { collectEgg, fetchChickenTypes, fetchMyChickens, sellEggs } from '@/lib/api'
 import { CHICKEN_TIERS, EGG_COOLDOWN_MS } from '@/lib/chickens'
-import { clock, errMsg, num, rs } from '@/lib/format'
+import { errMsg, num, rs } from '@/lib/format'
 import type { ChickenType, UserChicken } from '@/lib/types'
 
 function useNow(intervalMs = 1000) {
@@ -18,22 +18,40 @@ function useNow(intervalMs = 1000) {
   return now
 }
 
+function FillingEgg({ progress, ready, value }: { progress: number; ready: boolean; value: number }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5" aria-label={ready ? `Egg ready to collect, worth ${num(value)} Rs` : `Egg filling, ${Math.round(progress)} percent complete`}>
+      <div className={`egg-progress ${ready ? 'egg-progress-ready' : ''}`}>
+        <div className="egg-progress-fill" style={{ height: `${progress}%` }} />
+        <span className="egg-progress-shine" />
+      </div>
+      <span className="text-[10px] font-extrabold uppercase tracking-wide text-ink/50">
+        {ready ? 'Ready to collect' : 'Filling today'}
+      </span>
+    </div>
+  )
+}
+
 function ChickenCard({ chicken, type, index, now, onCollect }: {
   chicken: UserChicken; type: ChickenType; index: number; now: number; onCollect: (c: UserChicken) => Promise<void>
 }) {
   const lastCollectedAt = new Date(chicken.last_collected_at).getTime()
   const elapsed = now - lastCollectedAt
-  const left = EGG_COOLDOWN_MS - elapsed
   const isEggReady = elapsed >= EGG_COOLDOWN_MS
   const [popping, setPopping] = useState(false)
   const [busy, setBusy] = useState(false)
-  const progress = Math.min(100, Math.max(0, ((EGG_COOLDOWN_MS - left) / EGG_COOLDOWN_MS) * 100))
+  const midnight = new Date(now)
+  midnight.setHours(0, 0, 0, 0)
+  const dailyProgress = Math.min(100, Math.max(0, ((now - midnight.getTime()) / EGG_COOLDOWN_MS) * 100))
 
   async function click() {
     if (busy) return
     setBusy(true)
     setPopping(true)
-    try { await onCollect(chicken) } catch { setPopping(false) } finally { setBusy(false) }
+    try {
+      await onCollect(chicken)
+      window.setTimeout(() => setPopping(false), 500)
+    } catch { setPopping(false) } finally { setBusy(false) }
   }
 
   return (
@@ -46,30 +64,20 @@ function ChickenCard({ chicken, type, index, now, onCollect }: {
 
       <ChickenView color={type.color} phase={index * 1.3} height={1.15} className="h-28 w-full" />
 
-      <div className="mx-3 flex items-center justify-center gap-1.5 rounded-full bg-leaf-soft px-2 py-1 text-xs font-extrabold tabular-nums text-leaf-dark">
-        <Timer className="h-3.5 w-3.5" aria-hidden />
-        {isEggReady ? 'Egg is ready!' : clock(left)}
-      </div>
-
-      {/* Bottom zone: egg appears here once 24 hours have passed */}
-      <div className="relative flex h-[76px] flex-col items-center justify-end pb-2">
+      {/* The filling egg follows the daily midnight cycle; the RPC remains the source of truth for collection. */}
+      <div className="relative flex h-[104px] flex-col items-center justify-end pb-2">
         {isEggReady && !popping ? (
           <button onClick={click} aria-label={`Collect egg worth ${num(type.egg_value)} Rs`} className="flex flex-col items-center">
             <span className="font-display mb-0.5 rounded-full bg-yolk px-2 py-0.5 text-sm leading-none text-white shadow">+{num(type.egg_value)} Rs</span>
-            <span className="egg-shape animate-egg-glow cursor-pointer" />
+            <FillingEgg progress={100} ready value={type.egg_value} />
           </button>
         ) : popping ? (
           <span className="flex flex-col items-center animate-egg-pop">
             <span className="font-display mb-0.5 rounded-full bg-yolk px-2 py-0.5 text-sm leading-none text-white">+{num(type.egg_value)} Rs</span>
-            <span className="egg-shape" />
+            <FillingEgg progress={100} ready value={type.egg_value} />
           </span>
         ) : (
-          <div className="w-4/5">
-            <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
-              <div className="h-full rounded-full bg-yolk" style={{ width: `${progress}%` }} />
-            </div>
-            <p className="mt-1 text-center text-[10px] font-bold text-ink/50">next egg: +{num(type.egg_value)} Rs</p>
-          </div>
+          <FillingEgg progress={dailyProgress} value={type.egg_value} ready={false} />
         )}
       </div>
     </article>
