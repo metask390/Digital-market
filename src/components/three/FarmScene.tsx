@@ -8,7 +8,6 @@ import type { ChickenType, UserChicken } from '@/lib/types'
 
 const CHICKEN_URL = '/models/chicken.glb'
 const BARN_URL = '/models/barn.glb'
-const DAY_MS = 24 * 60 * 60 * 1000
 
 function dateKey(value: number | string) {
   const date = new Date(value)
@@ -103,24 +102,39 @@ function WanderingChicken({ chicken, type, index, now }: { chicken: UserChicken;
   const { object, scale, offset } = useFittedAsset(CHICKEN_URL, 1.15)
   const { actions } = useAnimations(animations, root)
   const phase = index * 1.73 + chicken.id.length * 0.11
+  const walkAction = useMemo(() => Object.keys(actions).find(name => /walk/i.test(name)) ?? Object.keys(actions)[0], [actions])
+  const idleAction = useMemo(() => Object.keys(actions).find(name => /idle|peck/i.test(name)) ?? walkAction, [actions, walkAction])
+  const activeAction = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    const animation = Object.keys(actions).find(name => /walk|idle|peck/i.test(name)) ?? Object.keys(actions)[0]
-    if (animation) {
-      actions[animation]?.reset().fadeIn(0.2).play()
-      return () => { actions[animation]?.fadeOut(0.2) }
-    }
-  }, [actions])
+    if (!idleAction) return
+    actions[idleAction]?.reset().fadeIn(0.2).play()
+    activeAction.current = idleAction
+    return () => { actions[idleAction]?.fadeOut(0.2) }
+  }, [actions, idleAction])
 
   useFrame(({ clock }) => {
     const group = root.current
     if (!group) return
-    const t = clock.elapsedTime + phase
-    const current = roamPosition(t, phase)
-    const next = roamPosition(t + 0.03, phase)
-    group.position.set(current.x, Math.abs(Math.sin(clock.elapsedTime * 5 + phase)) * 0.055, current.z)
-    group.rotation.y = Math.atan2(next.x - current.x, next.z - current.z)
-    group.rotation.z = Math.sin(clock.elapsedTime * 2.3 + phase) * 0.025
+    const cycleTime = (clock.elapsedTime + phase) % 15
+    const walking = cycleTime < 5
+    const desiredAction = walking ? walkAction : idleAction
+    if (desiredAction && activeAction.current !== desiredAction) {
+      actions[activeAction.current ?? '']?.fadeOut(0.2)
+      actions[desiredAction]?.reset().fadeIn(0.2).play()
+      activeAction.current = desiredAction
+    }
+    if (walking) {
+      const t = clock.elapsedTime + phase
+      const current = roamPosition(t, phase)
+      const next = roamPosition(t + 0.03, phase)
+      group.position.set(current.x, Math.abs(Math.sin(clock.elapsedTime * 5 + phase)) * 0.055, current.z)
+      group.rotation.y = Math.atan2(next.x - current.x, next.z - current.z)
+      group.rotation.z = Math.sin(clock.elapsedTime * 2.3 + phase) * 0.025
+    } else {
+      group.position.y = Math.abs(Math.sin(clock.elapsedTime * 1.4 + phase)) * 0.012
+      group.rotation.z = Math.sin(clock.elapsedTime * 0.9 + phase) * 0.012
+    }
   })
 
   return (
@@ -137,21 +151,33 @@ function GroundEgg({ chicken, type, index, now, onCollect }: { chicken: UserChic
   const isReady = dateKey(chicken.last_collected_at) !== dateKey(now)
   const wasReady = useRef(isReady)
   const dropStarted = useRef<number | null>(null)
+  const groundPosition = useRef({ x: 0, z: 0, initialized: false })
   const [claiming, setClaiming] = useState(false)
 
   useFrame(({ clock }) => {
     if (!root.current) return
+    if (isReady && !wasReady.current) dropStarted.current = clock.elapsedTime
+    if (!isReady) {
+      dropStarted.current = null
+      groundPosition.current.initialized = false
+      return
+    }
     const t = clock.elapsedTime + phase
     const current = roamPosition(t, phase)
     const next = roamPosition(t + 0.03, phase)
-    if (isReady && !wasReady.current) dropStarted.current = clock.elapsedTime
-    if (!isReady) dropStarted.current = null
+    if (!groundPosition.current.initialized) {
+      groundPosition.current = {
+        x: current.x - (next.x - current.x) * 0.35,
+        z: current.z - (next.z - current.z) * 0.35,
+        initialized: true,
+      }
+      if (dropStarted.current === null) dropStarted.current = clock.elapsedTime
+    }
     wasReady.current = isReady
     const dropProgress = dropStarted.current === null ? 1 : Math.min(1, (clock.elapsedTime - dropStarted.current) / 0.75)
     const eased = 1 - Math.pow(1 - dropProgress, 3)
     const dropY = isReady ? 1.15 * (1 - eased) : 0
-    root.current.position.set(current.x - (next.x - current.x) * 0.35, dropY, current.z - (next.z - current.z) * 0.35)
-    root.current.rotation.y = Math.atan2(next.x - current.x, next.z - current.z)
+    root.current.position.set(groundPosition.current.x, dropY, groundPosition.current.z)
   })
 
   async function claim() {
@@ -160,7 +186,8 @@ function GroundEgg({ chicken, type, index, now, onCollect }: { chicken: UserChic
     try { await onCollect(chicken) } finally { setClaiming(false) }
   }
 
-  return <group ref={root}><Egg value={type.egg_value} ready={isReady && !claiming} onClaim={() => void claim()} claiming={claiming} /></group>
+  if (!isReady || claiming) return null
+  return <group ref={root}><Egg value={type.egg_value} ready onClaim={() => void claim()} claiming={claiming} /></group>
 }
 
 function ChickenLabels({ type, now }: { type: ChickenType; now: number }) {

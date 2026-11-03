@@ -152,6 +152,22 @@ export async function fetchNotifications(userId: string): Promise<GameNotificati
   }))
 }
 
+export interface GlobalWithdrawal {
+  masked_name: string
+  amount: number
+  created_at: string
+}
+
+export async function fetchGlobalWithdrawals(): Promise<GlobalWithdrawal[]> {
+  const { data, error } = await getSupabase().rpc('game_global_withdrawals')
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map(row => ({
+    masked_name: String(row.masked_name ?? row.name ?? 'A user'),
+    amount: n(row.amount),
+    created_at: String(row.created_at ?? ''),
+  }))
+}
+
 // --------------------------------------------------------------- actions
 export async function submitDeposit(args: {
   userId: string; chickenTypeId: string; quantity: number
@@ -309,3 +325,18 @@ export const adminRejectDeposit = (id: string) => rpc('game_admin_reject_deposit
 export const adminApproveWithdrawal = (id: string) => rpc('game_admin_approve_withdrawal', { p_id: id })
 export const adminRejectWithdrawal = (id: string) => rpc('game_admin_reject_withdrawal', { p_id: id })
 export const adminSetBlocked = (userId: string, blocked: boolean) => rpc('game_admin_set_blocked', { p_user: userId, p_blocked: blocked })
+
+export async function adminSendNotification(userId: string, message: string) {
+  const { error } = await getSupabase().from('game_notifications').insert({ user_id: userId, title: 'Message from Admin', message: message.trim() })
+  if (error) throw error
+}
+
+export async function adminBroadcastNotification(message: string) {
+  const sb = getSupabase()
+  const { data: users, error: usersError } = await sb.from('game_users').select('user_id').limit(10000)
+  if (usersError) throw usersError
+  const rows = ((users ?? []) as { user_id: string }[]).map(user => ({ user_id: user.user_id, title: 'Announcement', message: message.trim() }))
+  if (rows.length === 0) throw new Error('No users found to notify.')
+  const { error } = await sb.from('game_notifications').insert(rows)
+  if (error) throw error
+}

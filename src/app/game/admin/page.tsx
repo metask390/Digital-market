@@ -5,6 +5,7 @@ import { Ban, Check, CheckCircle2, Copy, Eye, Loader2, Pencil, Plus, ShieldAlert
 import { useGame } from '@/components/GameProvider'
 import {
   adminApproveDeposit, adminApproveWithdrawal, adminPendingDeposits, adminPendingWithdrawals,
+  adminBroadcastNotification, adminSendNotification,
   adminCreatePaymentAccount, adminDeletePaymentAccount, adminPaymentAccounts, adminRejectDeposit,
   adminRejectWithdrawal, adminScreenshotUrl, adminSetBlocked, adminTogglePaymentAccount, adminUpdatePaymentAccount,
   adminUsers, type AdminDeposit,
@@ -12,7 +13,7 @@ import {
 import { errMsg, num, rs, when } from '@/lib/format'
 import type { AdminUserRow, PaymentAccount, Withdrawal } from '@/lib/types'
 
-type Tab = 'deposits' | 'withdrawals' | 'users' | 'settings'
+type Tab = 'deposits' | 'withdrawals' | 'users' | 'messaging' | 'settings'
 type AccountDraft = Omit<PaymentAccount, 'id' | 'created_at' | 'updated_at'>
 const EMPTY_ACCOUNT: AccountDraft = {
   kind: 'other', label: '', account_name: '', account_number: '', active: true, sort_order: 10,
@@ -32,6 +33,9 @@ export default function AdminPage() {
   const [notice, setNotice] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [messageUserId, setMessageUserId] = useState('')
+  const [directMessage, setDirectMessage] = useState('')
+  const [broadcastMessage, setBroadcastMessage] = useState('')
 
   const loadAll = useCallback(async () => {
     try {
@@ -90,6 +94,27 @@ export default function AdminPage() {
 
   function cancelAccountEdit() { setEditingAccountId(null); setAccountDraft(EMPTY_ACCOUNT) }
 
+  async function sendDirectMessage(e: React.FormEvent) {
+    e.preventDefault()
+    if (!messageUserId) return setError('Select a user first.')
+    if (!directMessage.trim()) return setError('Type a message first.')
+    setError(''); setNotice(''); setBusyId('direct-message')
+    try {
+      await adminSendNotification(messageUserId, directMessage)
+      setDirectMessage(''); setNotice('Direct message sent.'); await loadAll()
+    } catch (err) { setError(errMsg(err)) } finally { setBusyId(null) }
+  }
+
+  async function sendBroadcast(e: React.FormEvent) {
+    e.preventDefault()
+    if (!broadcastMessage.trim()) return setError('Type an announcement first.')
+    setError(''); setNotice(''); setBusyId('broadcast-message')
+    try {
+      await adminBroadcastNotification(broadcastMessage)
+      setBroadcastMessage(''); setNotice('Announcement sent to all users.'); await loadAll()
+    } catch (err) { setError(errMsg(err)) } finally { setBusyId(null) }
+  }
+
   if (!isAdmin || !exactAdmin) {
     return (
       <div className="mx-auto mt-16 flex max-w-sm flex-col items-center gap-3 text-center">
@@ -104,6 +129,7 @@ export default function AdminPage() {
     { id: 'deposits', label: 'Deposits', count: deposits.length },
     { id: 'withdrawals', label: 'Withdrawals', count: withdrawals.length },
     { id: 'users', label: 'Users', count: users.length },
+    { id: 'messaging', label: 'Messaging' },
     { id: 'settings', label: 'Settings' },
   ]
   const field = 'mt-1 w-full rounded-xl border-2 border-leaf/30 bg-white px-3 py-2.5 font-bold outline-none focus:border-leaf'
@@ -214,6 +240,22 @@ export default function AdminPage() {
               {users.length === 0 && <tr><td className="p-6 text-center text-ink/50" colSpan={5}>No users yet.</td></tr>}
             </tbody>
           </table>
+        </section>
+      )}
+
+      {tab === 'messaging' && (
+        <section className="grid gap-4 md:grid-cols-2">
+          <form onSubmit={sendDirectMessage} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+            <div><h2 className="font-display text-2xl">Direct Message</h2><p className="text-sm font-bold text-ink/60">Send a private notification to one user.</p></div>
+            <label className="block"><span className={lab}>User</span><select value={messageUserId} onChange={e => setMessageUserId(e.target.value)} className={field}><option value="">Select user…</option>{users.map(user => <option key={user.user_id} value={user.user_id}>{user.email ?? user.user_id}</option>)}</select></label>
+            <label className="block"><span className={lab}>Message</span><textarea value={directMessage} onChange={e => setDirectMessage(e.target.value)} rows={5} placeholder="Your account has been reviewed…" className={field} /></label>
+            <button type="submit" disabled={busyId === 'direct-message'} className={`${btn} w-full justify-center bg-leaf`}>{busyId === 'direct-message' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Send Message</button>
+          </form>
+          <form onSubmit={sendBroadcast} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+            <div><h2 className="font-display text-2xl">Broadcast</h2><p className="text-sm font-bold text-ink/60">Send an announcement to every registered user.</p></div>
+            <label className="block"><span className={lab}>Announcement</span><textarea value={broadcastMessage} onChange={e => setBroadcastMessage(e.target.value)} rows={5} placeholder="New market update…" className={field} /></label>
+            <button type="submit" disabled={busyId === 'broadcast-message'} className={`${btn} w-full justify-center bg-yolk-deep`}>{busyId === 'broadcast-message' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Send to All Users</button>
+          </form>
         </section>
       )}
 

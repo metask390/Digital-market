@@ -111,6 +111,15 @@ create table if not exists public.game_referral_earnings (
   created_at       timestamptz not null default now()
 );
 
+create table if not exists public.game_notifications (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.game_users(user_id) on delete cascade,
+  title      text not null,
+  message    text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists game_notifications_user_idx on public.game_notifications(user_id, created_at desc);
+
 create table if not exists public.game_admins (
   user_id uuid primary key references auth.users(id) on delete cascade
 );
@@ -164,6 +173,7 @@ alter table public.game_settings          enable row level security;
 alter table public.game_payment_accounts  enable row level security;
 alter table public.game_referral_earnings enable row level security;
 alter table public.game_admins            enable row level security;
+alter table public.game_notifications    enable row level security;
 
 drop policy if exists "users read own or admin"      on public.game_users;
 drop policy if exists "chicken types readable"       on public.game_chicken_types;
@@ -176,6 +186,8 @@ drop policy if exists "payment accounts readable"    on public.game_payment_acco
 drop policy if exists "payment accounts admin write" on public.game_payment_accounts;
 drop policy if exists "earnings read own or admin"   on public.game_referral_earnings;
 drop policy if exists "admins read self"             on public.game_admins;
+drop policy if exists "notifications read own or admin" on public.game_notifications;
+drop policy if exists "notifications admin insert"     on public.game_notifications;
 
 create policy "users read own or admin"       on public.game_users for select to authenticated
   using (user_id = auth.uid() or public.game_is_admin());
@@ -195,6 +207,10 @@ create policy "payment accounts admin write" on public.game_payment_accounts for
 create policy "earnings read own or admin"    on public.game_referral_earnings for select to authenticated
   using (referrer_id = auth.uid() or public.game_is_admin());
 create policy "admins read self"              on public.game_admins for select to authenticated using (user_id = auth.uid());
+create policy "notifications read own or admin" on public.game_notifications for select to authenticated
+  using (user_id = auth.uid() or public.game_is_admin());
+create policy "notifications admin insert" on public.game_notifications for insert to authenticated
+  with check (public.game_is_admin());
 
 -- No insert/update/delete policies on money tables: only the RPCs below can change them.
 
@@ -346,6 +362,23 @@ begin
   if not found then raise exception 'Withdrawal not found or already reviewed'; end if;
 end $$;
 
+-- Public-safe trust feed: only completed withdrawals, recent three, with names masked.
+create or replace function public.game_global_withdrawals()
+returns table(masked_name text, amount numeric, created_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select
+    case
+      when length(trim(account_name)) <= 2 then left(trim(account_name), 1) || '***'
+      else left(trim(account_name), 3) || '***' || right(trim(account_name), 1)
+    end as masked_name,
+    amount,
+    created_at
+  from public.game_withdrawals
+  where status = 'completed'
+  order by created_at desc
+  limit 3;
+$$;
+
 -- Reject: REFUND the wallet (and restore the limits that were consumed), mark rejected.
 create or replace function public.game_admin_reject_withdrawal(p_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
@@ -411,6 +444,7 @@ grant execute on function public.game_admin_approve_withdrawal(uuid) to authenti
 grant execute on function public.game_admin_reject_withdrawal(uuid) to authenticated;
 grant execute on function public.game_admin_set_blocked(uuid, boolean) to authenticated;
 grant execute on function public.game_admin_users() to authenticated;
+grant execute on function public.game_global_withdrawals() to authenticated;
 
 -- --------------------------------------------- storage: payment screenshots
 insert into storage.buckets (id, name, public) values ('game-media', 'game-media', false)

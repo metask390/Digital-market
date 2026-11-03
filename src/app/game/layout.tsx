@@ -2,9 +2,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Bell, Egg, Gift, Loader2, ShieldCheck, Store, UserRound, Wallet, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GameProvider, useGame } from '@/components/GameProvider'
-import { fetchNotifications } from '@/lib/api'
+import { fetchGlobalWithdrawals, fetchNotifications, type GlobalWithdrawal } from '@/lib/api'
 import { errMsg, rs, when } from '@/lib/format'
 import type { GameNotification } from '@/lib/types'
 
@@ -15,14 +15,21 @@ function NotificationCenter() {
   const [error, setError] = useState('')
   const [notifications, setNotifications] = useState<GameNotification[]>([])
 
-  async function toggle() {
-    const next = !open
-    setOpen(next)
-    if (!next || notifications.length > 0) return
-    setLoading(true); setError('')
-    try { setNotifications(await fetchNotifications(userId)) }
-    catch (e) { setError(errMsg(e)) }
-    finally { setLoading(false) }
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      setLoading(true); setError('')
+      try { const rows = await fetchNotifications(userId); if (mounted) setNotifications(rows) }
+      catch (e) { if (mounted) setError(errMsg(e)) }
+      finally { if (mounted) setLoading(false) }
+    }
+    void load()
+    const refreshTimer = window.setInterval(() => void load(), 60_000)
+    return () => { mounted = false; window.clearInterval(refreshTimer) }
+  }, [userId])
+
+  function toggle() {
+    setOpen(current => !current)
   }
 
   return (
@@ -33,27 +40,45 @@ function NotificationCenter() {
         {notifications.length > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] font-black leading-4 text-white">{notifications.length > 9 ? '9+' : notifications.length}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-[min(19rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white text-ink shadow-xl ring-1 ring-black/10">
-          <div className="flex items-center justify-between bg-leaf-soft px-3 py-2">
-            <p className="font-display text-lg text-leaf-dark">Notifications</p>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close notifications"><X className="h-4 w-4" /></button>
+        <div className="fixed inset-0 z-[90] bg-black/10" onClick={() => setOpen(false)}>
+          <div role="dialog" aria-label="Notifications" onClick={event => event.stopPropagation()} className="fixed left-1/2 top-16 z-[100] w-[min(28rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-hidden rounded-2xl bg-white text-ink shadow-2xl ring-1 ring-black/15">
+            <div className="flex items-center justify-between bg-leaf-soft px-4 py-3"><p className="font-display text-lg text-leaf-dark">Notifications</p><button type="button" onClick={() => setOpen(false)} aria-label="Close notifications" className="rounded-full p-1 hover:bg-black/10"><X className="h-4 w-4" /></button></div>
+            <div className="max-h-[calc(100vh-7rem)] overflow-y-auto">
+              {loading && <div className="flex items-center justify-center gap-2 p-5 text-sm font-bold text-ink/60"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}
+              {error && <p className="p-3 text-xs font-bold text-red-700">{error}</p>}
+              {!loading && !error && notifications.length === 0 && <p className="p-5 text-center text-sm font-bold text-ink/50">You are all caught up.</p>}
+              {!loading && notifications.length > 0 && <ul className="divide-y divide-black/5">{notifications.map(notification => <li key={notification.id} className="relative p-4 pr-11"><button type="button" onClick={() => setNotifications(current => current.filter(item => item.id !== notification.id))} aria-label={`Dismiss ${notification.title}`} className="absolute right-2 top-2 rounded-full p-1 text-ink/40 hover:bg-black/5 hover:text-ink"><X className="h-3.5 w-3.5" /></button><p className="text-sm font-extrabold text-leaf-dark">{notification.title}</p><p className="mt-0.5 whitespace-pre-wrap text-xs font-semibold text-ink/70">{notification.message}</p>{notification.created_at && <p className="mt-1 text-[10px] font-bold text-ink/40">{when(notification.created_at)}</p>}</li>)}</ul>}
+            </div>
           </div>
-          {loading && <div className="flex items-center justify-center gap-2 p-5 text-sm font-bold text-ink/60"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}
-          {error && <p className="p-3 text-xs font-bold text-red-700">{error}</p>}
-          {!loading && !error && notifications.length === 0 && <p className="p-5 text-center text-sm font-bold text-ink/50">You are all caught up.</p>}
-          {!loading && notifications.length > 0 && <ul className="max-h-80 divide-y divide-black/5 overflow-y-auto">
-            {notifications.map(notification => <li key={notification.id} className="relative p-3 pr-9">
-              <button type="button" onClick={() => setNotifications(current => current.filter(item => item.id !== notification.id))} aria-label={`Dismiss ${notification.title}`}
-                className="absolute right-2 top-2 rounded-full p-1 text-ink/40 hover:bg-black/5 hover:text-ink"><X className="h-3.5 w-3.5" /></button>
-              <p className="text-sm font-extrabold text-leaf-dark">{notification.title}</p>
-              <p className="mt-0.5 text-xs font-semibold text-ink/70">{notification.message}</p>
-              {notification.created_at && <p className="mt-1 text-[10px] font-bold text-ink/40">{when(notification.created_at)}</p>}
-            </li>)}
-          </ul>}
         </div>
       )}
     </div>
   )
+}
+
+function GlobalWithdrawalToast() {
+  const [withdrawals, setWithdrawals] = useState<GlobalWithdrawal[]>([])
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      try { const rows = await fetchGlobalWithdrawals(); if (mounted) setWithdrawals(rows) } catch { /* The banner is optional until the RPC is installed. */ }
+    }
+    void load()
+    const refreshTimer = window.setInterval(() => void load(), 60_000)
+    return () => { mounted = false; window.clearInterval(refreshTimer) }
+  }, [])
+
+  useEffect(() => {
+    if (withdrawals.length < 2) return
+    const rotateTimer = window.setInterval(() => setIndex(current => (current + 1) % withdrawals.length), 7000)
+    return () => window.clearInterval(rotateTimer)
+  }, [withdrawals.length])
+
+  const withdrawal = withdrawals[index]
+  if (!withdrawal) return null
+  return <div className="pointer-events-none fixed left-1/2 top-[4.25rem] z-30 w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-2xl bg-white/95 px-3 py-2 text-center text-xs font-extrabold text-leaf-dark shadow-lg ring-1 ring-leaf/20 backdrop-blur-sm">🎉 Congratulations! {withdrawal.masked_name} successfully withdrew {rs(withdrawal.amount)}.</div>
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -81,6 +106,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      <GlobalWithdrawalToast />
       <main className="px-3 pb-28 pt-4">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[480px] justify-around rounded-t-3xl border-t border-black/5 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_20px_rgba(0,0,0,0.12)]">
