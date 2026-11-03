@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Coins, Egg } from 'lucide-react'
-import { ChickenView, ViewCanvasHost } from '@/components/three/ViewCanvas'
+import { MarketChickenPreview } from '@/components/three/MarketChickenPreview'
 import { BuyModal } from '@/components/BuyModal'
 import { fetchChickenTypes } from '@/lib/api'
 import { CHICKEN_TIERS } from '@/lib/chickens'
@@ -16,7 +16,7 @@ export default function MarketPage() {
   useEffect(() => { fetchChickenTypes().then(setTypes).catch(() => undefined) }, [])
 
   return (
-    <ViewCanvasHost>
+    <div>
       <div className="mb-4 rounded-3xl bg-gradient-to-br from-yolk to-yolk-deep p-4 text-white shadow-md">
         <h1 className="font-display text-3xl drop-shadow-[0_2px_0_rgba(140,60,0,0.4)]">Chicken Market</h1>
         <p className="text-sm font-bold text-white/90">Every hen lays one egg every 24 hours. Pick your flock.</p>
@@ -38,7 +38,7 @@ export default function MarketPage() {
               <span className="flex items-center gap-1 text-xs font-extrabold text-yolk-deep"><Egg className="h-3.5 w-3.5" aria-hidden />{num(t.egg_value)} Rs</span>
             </div>
 
-            <ChickenView color={t.color} phase={i * 0.9} height={1.1 + i * 0.04} className="h-36 w-full" />
+            <MarketChickenPreview color={t.color} phase={i * 0.9} />
 
             <div className="px-3 pb-3 text-center">
               <h2 className="font-display text-lg leading-tight">{t.name}</h2>
@@ -56,6 +56,6 @@ export default function MarketPage() {
         <BuyModal chicken={selectedChicken} onCloseAction={() => setSelectedChicken(null)}
           onDoneAction={msg => { setSelectedChicken(null); setToast(msg); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       )}
-    </ViewCanvasHost>
+    </div>
   )
 }

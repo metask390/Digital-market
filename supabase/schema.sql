@@ -418,6 +418,28 @@ begin
     order by gu.created_at desc;
 end $$;
 
+create or replace function public.game_admin_send_notification(p_user_id uuid, p_title text, p_message text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.game_is_admin() then raise exception 'Admins only'; end if;
+  if p_user_id is null or coalesce(trim(p_message), '') = '' then raise exception 'A recipient and message are required'; end if;
+  insert into public.game_notifications (user_id, title, message)
+  values (p_user_id, coalesce(nullif(trim(p_title), ''), 'Message from Admin'), trim(p_message));
+end $$;
+
+create or replace function public.game_admin_broadcast_notification(p_title text, p_message text) returns integer
+language plpgsql security definer set search_path = public as $$
+declare inserted_count integer;
+begin
+  if not public.game_is_admin() then raise exception 'Admins only'; end if;
+  if coalesce(trim(p_message), '') = '' then raise exception 'A message is required'; end if;
+  insert into public.game_notifications (user_id, title, message)
+  select user_id, coalesce(nullif(trim(p_title), ''), 'Announcement'), trim(p_message)
+  from public.game_users;
+  get diagnostics inserted_count = row_count;
+  return inserted_count;
+end $$;
+
 -- ----------------------------------------------------------- permissions
 revoke all on function public.game_lock_active_user(uuid) from public, anon, authenticated;
 revoke all on function public.game_register(uuid) from public, anon;
@@ -431,6 +453,8 @@ revoke all on function public.game_admin_approve_withdrawal(uuid) from public, a
 revoke all on function public.game_admin_reject_withdrawal(uuid) from public, anon;
 revoke all on function public.game_admin_set_blocked(uuid, boolean) from public, anon;
 revoke all on function public.game_admin_users() from public, anon;
+revoke all on function public.game_admin_send_notification(uuid, text, text) from public, anon;
+revoke all on function public.game_admin_broadcast_notification(text, text) from public, anon;
 
 grant execute on function public.game_is_admin() to authenticated;
 grant execute on function public.game_register(uuid) to authenticated;
@@ -445,6 +469,8 @@ grant execute on function public.game_admin_reject_withdrawal(uuid) to authentic
 grant execute on function public.game_admin_set_blocked(uuid, boolean) to authenticated;
 grant execute on function public.game_admin_users() to authenticated;
 grant execute on function public.game_global_withdrawals() to authenticated;
+grant execute on function public.game_admin_send_notification(uuid, text, text) to authenticated;
+grant execute on function public.game_admin_broadcast_notification(text, text) to authenticated;
 
 -- --------------------------------------------- storage: payment screenshots
 insert into storage.buckets (id, name, public) values ('game-media', 'game-media', false)

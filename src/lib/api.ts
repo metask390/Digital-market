@@ -327,16 +327,18 @@ export const adminRejectWithdrawal = (id: string) => rpc('game_admin_reject_with
 export const adminSetBlocked = (userId: string, blocked: boolean) => rpc('game_admin_set_blocked', { p_user: userId, p_blocked: blocked })
 
 export async function adminSendNotification(userId: string, message: string) {
-  const { error } = await getSupabase().from('game_notifications').insert({ user_id: userId, title: 'Message from Admin', message: message.trim() })
+  const { error } = await getSupabase().rpc('game_admin_send_notification', {
+    p_user_id: userId,
+    p_title: 'Message from Admin',
+    p_message: message.trim(),
+  })
   if (error) throw error
 }
 
 export async function adminBroadcastNotification(message: string) {
-  const sb = getSupabase()
-  const { data: users, error: usersError } = await sb.from('game_users').select('user_id').limit(10000)
-  if (usersError) throw usersError
-  const rows = ((users ?? []) as { user_id: string }[]).map(user => ({ user_id: user.user_id, title: 'Announcement', message: message.trim() }))
-  if (rows.length === 0) throw new Error('No users found to notify.')
-  const { error } = await sb.from('game_notifications').insert(rows)
+  const { error } = await getSupabase().rpc('game_admin_broadcast_notification', {
+    p_title: 'Announcement',
+    p_message: message.trim(),
+  })
   if (error) throw error
 }
