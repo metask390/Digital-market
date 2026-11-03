@@ -3,7 +3,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Box3, Group, Mesh, Vector3 } from 'three'
-import { useAnimations, useGLTF } from '@react-three/drei'
+import { Environment, PerspectiveCamera, useAnimations, useGLTF } from '@react-three/drei'
 
 const CHICKEN_URL = '/models/chicken.glb'
 
@@ -22,7 +22,7 @@ function ChickenModel({ phase = 0, color }: { phase?: number; color: string }) {
     const box = new Box3().setFromObject(clone)
     const size = box.getSize(new Vector3())
     const center = box.getCenter(new Vector3())
-    const scale = 1.28 / Math.max(size.y, 0.001)
+    const scale = 1.12 / Math.max(size.y, 0.001)
     return { clone, scale, offset: [-center.x * scale, -box.min.y * scale, -center.z * scale] as [number, number, number] }
   }, [scene])
 
@@ -36,7 +36,8 @@ function ChickenModel({ phase = 0, color }: { phase?: number; color: string }) {
   useFrame(({ clock }) => {
     if (!root.current) return
     const t = clock.elapsedTime + phase
-    root.current.position.y = Math.abs(Math.sin(t * 2.2)) * 0.035
+    root.current.position.y = 0.035 + Math.abs(Math.sin(t * 2.2)) * 0.018
+    root.current.rotation.y = Math.PI + Math.sin(t * 0.45) * 0.22
     root.current.rotation.z = Math.sin(t * 1.3) * 0.025
   })
 
@@ -56,9 +57,11 @@ function ChickenModel({ phase = 0, color }: { phase?: number; color: string }) {
 export function MarketChickenPreview({ color, phase = 0 }: { color: string; phase?: number }) {
   return (
     <div className="h-36 w-full overflow-hidden bg-gradient-to-b from-sky-100 to-leaf-soft">
-      <Canvas shadows camera={{ position: [0, 1.05, 2.25], fov: 32 }} dpr={[1, 1.4]}>
-        <ambientLight intensity={0.5} />
-        <directionalLight castShadow position={[3, 5, 4]} intensity={1.2} shadow-mapSize={[512, 512]} />
+      <Canvas shadows dpr={[1, 1.4]}>
+        <PerspectiveCamera makeDefault position={[0, 0.55, 4.8]} fov={42} />
+        <ambientLight intensity={1.5} />
+        <directionalLight castShadow position={[5, 6, 5]} intensity={2} shadow-mapSize={[512, 512]} />
+        <Environment preset="city" />
         <Suspense fallback={null}><ChickenModel color={color} phase={phase} /></Suspense>
       </Canvas>
     </div>
