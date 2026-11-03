@@ -22,7 +22,7 @@ function ChickenModel({ phase = 0, color }: { phase?: number; color: string }) {
     const box = new Box3().setFromObject(clone)
     const size = box.getSize(new Vector3())
     const center = box.getCenter(new Vector3())
-    const scale = 1.12 / Math.max(size.y, 0.001)
+    const scale = 1.8 / Math.max(size.y, 0.001)
     return { clone, scale, offset: [-center.x * scale, -box.min.y * scale, -center.z * scale] as [number, number, number] }
   }, [scene])
 
@@ -58,7 +58,7 @@ export function MarketChickenPreview({ color, phase = 0 }: { color: string; phas
   return (
     <div className="h-36 w-full overflow-hidden bg-gradient-to-b from-sky-100 to-leaf-soft">
       <Canvas shadows dpr={[1, 1.4]}>
-        <PerspectiveCamera makeDefault position={[0, 0.55, 4.8]} fov={42} />
+        <PerspectiveCamera makeDefault position={[0, 0.65, 6]} fov={45} />
         <ambientLight intensity={1.5} />
         <directionalLight castShadow position={[5, 6, 5]} intensity={2} shadow-mapSize={[512, 512]} />
         <Environment preset="city" />
