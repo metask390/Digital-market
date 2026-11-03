@@ -19,6 +19,16 @@ function useNow(intervalMs = 1000) {
   return now
 }
 
+function countdownUntilMidnight(now: number) {
+  const nextMidnight = new Date(now)
+  nextMidnight.setHours(24, 0, 0, 0)
+  const totalSeconds = Math.max(0, Math.floor((nextMidnight.getTime() - now) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
+}
+
 export default function DashboardPage() {
   const { userId, profile, refresh } = useGame()
   const [chickens, setChickens] = useState<UserChicken[] | null>(null)
@@ -71,6 +81,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-3">
+      <div className="rounded-2xl bg-black/75 px-3 py-2 text-center text-xs font-extrabold text-white shadow-md">
+        Egg Reset Time: 12:00 AM (Midnight) <span className="text-yolk">| {countdownUntilMidnight(now)}</span> <span className="mr-1 text-white/80">| انڈے کا ٹائم رات 12 بجے ہے</span>
+      </div>
       <section className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-yolk to-yolk-deep p-3 text-white shadow-md">
         <div className="min-w-0">
           <p className="text-[11px] font-extrabold uppercase tracking-wider text-white/90">Total Eggs Value</p>

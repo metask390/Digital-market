@@ -1,6 +1,6 @@
 'use client'
 
-import { Html, Environment, OrbitControls, Text, useAnimations, useGLTF } from '@react-three/drei'
+import { Environment, Html, OrbitControls, Text, useAnimations, useGLTF } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Box3, Group, Mesh, Vector3 } from 'three'
@@ -13,6 +13,16 @@ const DAY_MS = 24 * 60 * 60 * 1000
 function dateKey(value: number | string) {
   const date = new Date(value)
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function countdownUntilMidnight(now: number) {
+  const nextMidnight = new Date(now)
+  nextMidnight.setHours(24, 0, 0, 0)
+  const totalSeconds = Math.max(0, Math.floor((nextMidnight.getTime() - now) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
 }
 
 function useFittedAsset(url: string, targetHeight: number) {
@@ -35,6 +45,13 @@ function useFittedAsset(url: string, targetHeight: number) {
       offset: [-center.x * scale, -box.min.y * scale, -center.z * scale] as [number, number, number],
     }
   }, [scene, targetHeight])
+}
+
+function roamPosition(time: number, phase: number) {
+  return {
+    x: Math.sin(time * 0.31 + phase) * 8.5 + Math.sin(time * 0.13 + phase * 0.7) * 0.9,
+    z: Math.cos(time * 0.25 + phase) * 8.2 + Math.cos(time * 0.17 + phase * 0.4) * 0.8,
+  }
 }
 
 function Barn() {
@@ -60,55 +77,32 @@ function HayBale({ position }: { position: [number, number, number] }) {
 function Fence({ position, rotation = 0 }: { position: [number, number, number]; rotation?: number }) {
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      <mesh position={[0, 0.35, 0]} castShadow>
-        <boxGeometry args={[4.2, 0.12, 0.12]} />
-        <meshStandardMaterial color="#8f5f32" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 0.8, 0]} castShadow>
-        <boxGeometry args={[4.2, 0.12, 0.12]} />
-        <meshStandardMaterial color="#8f5f32" roughness={0.9} />
-      </mesh>
-      {[-1.8, 0, 1.8].map(x => (
-        <mesh key={x} position={[x, 0.45, 0]} castShadow>
-          <boxGeometry args={[0.15, 1.1, 0.18]} />
-          <meshStandardMaterial color="#70451f" roughness={0.9} />
-        </mesh>
-      ))}
+      <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[4.2, 0.12, 0.12]} /><meshStandardMaterial color="#8f5f32" roughness={0.9} /></mesh>
+      <mesh position={[0, 0.8, 0]} castShadow><boxGeometry args={[4.2, 0.12, 0.12]} /><meshStandardMaterial color="#8f5f32" roughness={0.9} /></mesh>
+      {[-1.8, 0, 1.8].map(x => <mesh key={x} position={[x, 0.45, 0]} castShadow><boxGeometry args={[0.15, 1.1, 0.18]} /><meshStandardMaterial color="#70451f" roughness={0.9} /></mesh>)}
     </group>
   )
 }
 
 function Egg({ value, ready, onClaim, claiming }: { value: number; ready: boolean; onClaim: () => void; claiming: boolean }) {
   return (
-    <group position={[0, 0.32, 0]}>
+    <group position={[0, 0.44, 0]}>
       <mesh scale={[0.34, 0.48, 0.34]} castShadow>
         <sphereGeometry args={[1, 24, 18]} />
         <meshStandardMaterial color={ready ? '#fff8df' : '#f4d99a'} roughness={0.35} emissive={ready ? '#ffc928' : '#000000'} emissiveIntensity={ready ? 0.2 : 0} />
       </mesh>
-      <Text position={[0, 0.86, 0]} fontSize={0.18} color={ready ? '#fffaf0' : '#6b4a2b'} outlineWidth={0.025} outlineColor="#4d321e" anchorX="center">
-        +{value} Rs
-      </Text>
-      {ready && (
-        <Html position={[0, 0.58, 0]} center>
-          <button type="button" onClick={onClaim} disabled={claiming} className="pointer-events-auto rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white shadow-[0_3px_0_#991b1b] transition hover:bg-red-700 active:translate-y-0.5 active:shadow-none disabled:opacity-60">
-            {claiming ? 'Claiming…' : 'Claim'}
-          </button>
-        </Html>
-      )}
+      <Text position={[0, 0.86, 0]} fontSize={0.18} color={ready ? '#fffaf0' : '#6b4a2b'} outlineWidth={0.025} outlineColor="#4d321e" anchorX="center">+{value} Rs</Text>
+      {ready && <Html position={[0, 0.58, 0]} center><button type="button" onClick={onClaim} disabled={claiming} className="pointer-events-auto rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white shadow-[0_3px_0_#991b1b] transition hover:bg-red-700 active:translate-y-0.5 active:shadow-none disabled:opacity-60">{claiming ? 'Claiming…' : 'Claim'}</button></Html>}
     </group>
   )
 }
 
-function WanderingChicken({ chicken, type, index, now, onCollect }: { chicken: UserChicken; type: ChickenType; index: number; now: number; onCollect: (chicken: UserChicken) => Promise<void> }) {
+function WanderingChicken({ chicken, type, index, now }: { chicken: UserChicken; type: ChickenType; index: number; now: number }) {
   const root = useRef<Group>(null)
   const { animations } = useGLTF(CHICKEN_URL)
   const { object, scale, offset } = useFittedAsset(CHICKEN_URL, 1.15)
   const { actions } = useAnimations(animations, root)
-  const [claiming, setClaiming] = useState(false)
   const phase = index * 1.73 + chicken.id.length * 0.11
-  const baseX = ((index * 2.7) % 10) - 5
-  const baseZ = ((index * 1.9) % 5) - 0.5
-  const isReady = dateKey(chicken.last_collected_at) !== dateKey(now)
 
   useEffect(() => {
     const animation = Object.keys(actions).find(name => /walk|idle|peck/i.test(name)) ?? Object.keys(actions)[0]
@@ -121,14 +115,43 @@ function WanderingChicken({ chicken, type, index, now, onCollect }: { chicken: U
   useFrame(({ clock }) => {
     const group = root.current
     if (!group) return
-    const t = clock.elapsedTime * 0.22 + phase
-    const x = baseX + Math.sin(t * 1.1) * 1.55
-    const z = baseZ + Math.cos(t * 0.87) * 1.35
-    const nextX = baseX + Math.sin((t + 0.02) * 1.1) * 1.55
-    const nextZ = baseZ + Math.cos((t + 0.02) * 0.87) * 1.35
-    group.position.set(x, 0, z)
-    group.rotation.y = Math.atan2(nextX - x, nextZ - z)
+    const t = clock.elapsedTime + phase
+    const current = roamPosition(t, phase)
+    const next = roamPosition(t + 0.03, phase)
+    group.position.set(current.x, Math.abs(Math.sin(clock.elapsedTime * 5 + phase)) * 0.055, current.z)
+    group.rotation.y = Math.atan2(next.x - current.x, next.z - current.z)
     group.rotation.z = Math.sin(clock.elapsedTime * 2.3 + phase) * 0.025
+  })
+
+  return (
+    <group ref={root}>
+      <group position={offset} scale={scale}><primitive object={object} /></group>
+      <ChickenLabels type={type} now={now} />
+    </group>
+  )
+}
+
+function GroundEgg({ chicken, type, index, now, onCollect }: { chicken: UserChicken; type: ChickenType; index: number; now: number; onCollect: (chicken: UserChicken) => Promise<void> }) {
+  const root = useRef<Group>(null)
+  const phase = index * 1.73 + chicken.id.length * 0.11
+  const isReady = dateKey(chicken.last_collected_at) !== dateKey(now)
+  const wasReady = useRef(isReady)
+  const dropStarted = useRef<number | null>(null)
+  const [claiming, setClaiming] = useState(false)
+
+  useFrame(({ clock }) => {
+    if (!root.current) return
+    const t = clock.elapsedTime + phase
+    const current = roamPosition(t, phase)
+    const next = roamPosition(t + 0.03, phase)
+    if (isReady && !wasReady.current) dropStarted.current = clock.elapsedTime
+    if (!isReady) dropStarted.current = null
+    wasReady.current = isReady
+    const dropProgress = dropStarted.current === null ? 1 : Math.min(1, (clock.elapsedTime - dropStarted.current) / 0.75)
+    const eased = 1 - Math.pow(1 - dropProgress, 3)
+    const dropY = isReady ? 1.15 * (1 - eased) : 0
+    root.current.position.set(current.x - (next.x - current.x) * 0.35, dropY, current.z - (next.z - current.z) * 0.35)
+    root.current.rotation.y = Math.atan2(next.x - current.x, next.z - current.z)
   })
 
   async function claim() {
@@ -137,19 +160,18 @@ function WanderingChicken({ chicken, type, index, now, onCollect }: { chicken: U
     try { await onCollect(chicken) } finally { setClaiming(false) }
   }
 
+  return <group ref={root}><Egg value={type.egg_value} ready={isReady && !claiming} onClaim={() => void claim()} claiming={claiming} /></group>
+}
+
+function ChickenLabels({ type, now }: { type: ChickenType; now: number }) {
   return (
-    <group ref={root}>
-      <group position={offset} scale={scale}>
-        <primitive object={object} />
-      </group>
-      <Text position={[0, 1.48, 0]} fontSize={0.18} color="#fffaf0" outlineWidth={0.03} outlineColor="#3d2a18" anchorX="center">
-        {type.name} · {type.price.toLocaleString('en-US')} Rs
-      </Text>
-      <Text position={[0, 1.22, 0]} fontSize={0.13} color="#fffaf0" outlineWidth={0.02} outlineColor="#3d2a18" anchorX="center">
-        Midnight egg
-      </Text>
-      <Egg value={type.egg_value} ready={isReady} onClaim={() => void claim()} claiming={claiming} />
-    </group>
+    <Html position={[0, 3.1, 0]} center distanceFactor={8}>
+      <div className="min-w-28 rounded-lg bg-black/55 px-2 py-1 text-center text-[10px] font-extrabold leading-4 text-white shadow-lg backdrop-blur-sm">
+        <div>Midnight in {countdownUntilMidnight(now)}</div>
+        <div>{type.name}</div>
+        <div>{type.price.toLocaleString('en-US')} Rs</div>
+      </div>
+    </Html>
   )
 }
 
@@ -161,14 +183,8 @@ function FarmWorld({ chickens, types, now, onCollect }: { chickens: UserChicken[
       <directionalLight castShadow position={[10, 12, 5]} intensity={1.5} shadow-mapSize={[1024, 1024]} />
       <hemisphereLight intensity={0.25} color="#fff1cf" groundColor="#3d6b39" />
       <group position={[0, -0.06, 0]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[100, 100]} />
-          <meshStandardMaterial color="#4ade80" roughness={1} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-          <planeGeometry args={[18, 13]} />
-          <meshStandardMaterial color="#87ce68" roughness={1} />
-        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[100, 100]} /><meshStandardMaterial color="#4ade80" roughness={1} /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}><planeGeometry args={[22, 18]} /><meshStandardMaterial color="#87ce68" roughness={1} /></mesh>
         <Barn />
         <Fence position={[-4.6, 0, 1.7]} rotation={0.05} />
         <Fence position={[4.1, 0, 2.8]} rotation={-0.12} />
@@ -176,7 +192,13 @@ function FarmWorld({ chickens, types, now, onCollect }: { chickens: UserChicken[
         <HayBale position={[4.8, 0.4, -3.5]} />
         {chickens.map((chicken, index) => {
           const type = types.find(item => String(item.id) === String(chicken.chicken_type_id))
-          return type ? <WanderingChicken key={chicken.id} chicken={chicken} type={type} index={index} now={now} onCollect={onCollect} /> : null
+          if (!type) return null
+          return (
+            <group key={chicken.id}>
+              <WanderingChicken chicken={chicken} type={type} index={index} now={now} />
+              <GroundEgg chicken={chicken} type={type} index={index} now={now} onCollect={onCollect} />
+            </group>
+          )
         })}
       </group>
     </>
@@ -192,9 +214,7 @@ export function FarmScene({ chickens, types, now, onCollect }: { chickens: UserC
         </Suspense>
         <OrbitControls enablePan={false} minDistance={7} maxDistance={16} maxPolarAngle={Math.PI / 2.15} target={[0, 0.6, -1]} />
       </Canvas>
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/25 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white">
-        Drag to explore your farm
-      </div>
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/25 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white">Drag to explore your farm</div>
     </div>
   )
 }
