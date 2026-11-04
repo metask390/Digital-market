@@ -12,8 +12,9 @@ const COOP_URL = '/models/coop.glb'
 const GROUND_URL = '/models/ground.glb'
 const FENCE_URL = '/models/fence.glb'
 const CORNER_FENCE_URL = '/models/fence_corner.glb'
-const PEN_LIMIT = 16.2
-const LINE_Z = 5
+const GROUND_SCALE = 10
+const PEN_LIMIT = 14.2
+const LINE_Z = 2
 const LINEUP_START = 23 * 3600 + 55 * 60
 
 function dateKey(value: number | string) {
@@ -36,7 +37,7 @@ function countdownUntilMidnight(now: number) {
   return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
 }
 
-function useFittedAsset(url: string, targetHeight: number) {
+function useGroundedModel(url: string, scale: number) {
   const { scene } = useGLTF(url)
   return useMemo(() => {
     const object = scene.clone(true)
@@ -47,28 +48,36 @@ function useFittedAsset(url: string, targetHeight: number) {
       }
     })
     const box = new Box3().setFromObject(object)
-    const size = box.getSize(new Vector3())
-    const center = box.getCenter(new Vector3())
-    const scale = targetHeight / Math.max(size.y, 0.001)
-    return { object, scale, offset: [-center.x * scale, -box.min.y * scale, -center.z * scale] as [number, number, number] }
-  }, [scene, targetHeight])
+    return { object, yOffset: -box.min.y * scale }
+  }, [scene, scale])
 }
 
-function FarmAsset({ url, targetHeight, position, rotation = 0, scaleMultiplier = 1 }: { url: string; targetHeight: number; position: [number, number, number]; rotation?: number; scaleMultiplier?: number }) {
-  const { object, scale, offset } = useFittedAsset(url, targetHeight)
-  return <primitive object={object} position={[position[0] + offset[0], position[1] + offset[1], position[2] + offset[2]]} rotation={[0, rotation, 0]} scale={scale * scaleMultiplier} />
+function GroundModel() {
+  const { scene } = useGLTF(GROUND_URL)
+  const object = useMemo(() => {
+    const clone = scene.clone(true)
+    clone.traverse(node => {
+      if ((node as Mesh).isMesh) node.receiveShadow = true
+    })
+    return clone
+  }, [scene])
+  return <primitive object={object} position={[0, 0, 0]} scale={GROUND_SCALE} receiveShadow />
+}
+
+function GroundedAsset({ url, position, rotation = 0, scale = 1 }: { url: string; position: [number, number, number]; rotation?: number; scale?: number }) {
+  const { object, yOffset } = useGroundedModel(url, scale)
+  return <primitive object={object} position={[position[0], position[1] + yOffset, position[2]]} rotation={[0, rotation, 0]} scale={scale} />
 }
 
 function FarmArchitecture() {
-  const edge = 17.5
-  const fenceLength = 5
-  const fencePositions = Array.from({ length: 7 }, (_, index) => -15 + index * fenceLength)
+  const fenceSlots = [-15, -10, -5, 0, 5, 10, 15]
+  const sideSlots = [-10, -5, 0, 5, 10]
   return <group>
-    <FarmAsset url={GROUND_URL} targetHeight={0.22} position={[0, 0, 0]} scaleMultiplier={4.5} />
-    <FarmAsset url={COOP_URL} targetHeight={5.5} position={[0, 0, 0]} scaleMultiplier={1.35} />
-    {fencePositions.map(x => <group key={`edge-${x}`}><FarmAsset url={FENCE_URL} targetHeight={1.8} position={[x, 0, -edge]} rotation={0} scaleMultiplier={1.2} /><FarmAsset url={FENCE_URL} targetHeight={1.8} position={[x, 0, edge]} rotation={Math.PI} scaleMultiplier={1.2} /></group>)}
-    {fencePositions.slice(1, -1).map(z => <group key={`side-${z}`}><FarmAsset url={FENCE_URL} targetHeight={1.8} position={[-edge, 0, z]} rotation={Math.PI / 2} scaleMultiplier={1.2} /><FarmAsset url={FENCE_URL} targetHeight={1.8} position={[edge, 0, z]} rotation={-Math.PI / 2} scaleMultiplier={1.2} /></group>)}
-    {([[-edge, -edge], [edge, -edge], [-edge, edge], [edge, edge]] as [number, number][]).map(([x, z], index) => <FarmAsset key={index} url={CORNER_FENCE_URL} targetHeight={1.9} position={[x, 0, z]} rotation={index * Math.PI / 2} scaleMultiplier={1.2} />)}
+    <GroundModel />
+    <GroundedAsset url={COOP_URL} position={[0, 0, -5]} scale={1} />
+    {fenceSlots.map(x => <group key={`horizontal-${x}`}><GroundedAsset url={FENCE_URL} position={[x, 0, -15]} scale={1} /><GroundedAsset url={FENCE_URL} position={[x, 0, 15]} rotation={Math.PI} scale={1} /></group>)}
+    {sideSlots.map(z => <group key={`vertical-${z}`}><GroundedAsset url={FENCE_URL} position={[-15, 0, z]} rotation={Math.PI / 2} scale={1} /><GroundedAsset url={FENCE_URL} position={[15, 0, z]} rotation={-Math.PI / 2} scale={1} /></group>)}
+    {([[-15, -15], [15, -15], [-15, 15], [15, 15]] as [number, number][]).map(([x, z], index) => <GroundedAsset key={`corner-${index}`} url={CORNER_FENCE_URL} position={[x, 0, z]} rotation={index * Math.PI / 2} scale={1} />)}
   </group>
 }
 
@@ -76,8 +85,8 @@ function PlayerMovement() {
   const { camera } = useThree()
   const keys = useRef<Record<string, boolean>>({})
   useEffect(() => {
-    camera.position.set(0, 2, 15)
-    camera.rotation.set(0, 0, 0)
+    camera.position.set(0, 3, 15)
+    camera.lookAt(0, 2, -5)
     const down = (event: KeyboardEvent) => { keys.current[event.code] = true }
     const up = (event: KeyboardEvent) => { keys.current[event.code] = false }
     window.addEventListener('keydown', down)
@@ -91,12 +100,12 @@ function PlayerMovement() {
     if (keys.current.KeyA || keys.current.ArrowLeft) direction.x -= 1
     if (keys.current.KeyD || keys.current.ArrowRight) direction.x += 1
     if (!direction.lengthSq()) return
-    direction.normalize().multiplyScalar(4.5 * Math.min(delta, 0.05))
+    direction.normalize().multiplyScalar(4.2 * Math.min(delta, 0.05))
     camera.translateX(direction.x)
     camera.translateZ(direction.z)
     camera.position.x = Math.max(-PEN_LIMIT, Math.min(PEN_LIMIT, camera.position.x))
     camera.position.z = Math.max(-PEN_LIMIT, Math.min(PEN_LIMIT, camera.position.z))
-    camera.position.y = 2
+    camera.position.y = 3
   })
   return null
 }
@@ -105,26 +114,32 @@ function Egg({ value, onClaim, claiming }: { value: number; onClaim: () => void;
   return <group position={[0, 0.43, 0]}><mesh scale={[0.34, 0.48, 0.34]} castShadow onClick={event => { event.stopPropagation(); onClaim() }}><sphereGeometry args={[1, 24, 18]} /><meshStandardMaterial color="#fff8df" roughness={0.35} emissive="#ffc928" emissiveIntensity={0.25} /></mesh><Text position={[0, 0.85, 0]} fontSize={0.18} color="#fffaf0" outlineWidth={0.025} outlineColor="#4d321e" anchorX="center">+{value} Rs</Text><Html position={[0, 0.55, 0]} center><button type="button" onClick={event => { event.stopPropagation(); onClaim() }} disabled={claiming} className="pointer-events-auto rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white shadow-[0_3px_0_#991b1b] disabled:opacity-60">{claiming ? 'Claiming…' : 'Claim'}</button></Html></group>
 }
 
-function seededPosition(index: number, id: string) {
+function seededSpawn(index: number, id: string) {
   let hash = index * 9301 + 49297
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) % 233280
-  const angle = (hash / 233280) * Math.PI * 2
-  const radius = 4.5 + (hash % 500) / 500 * 5
-  return new Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius)
+  return new Vector3(-5 + (hash % 1000) / 100, 0.2, (hash * 7 % 1000) / 100)
 }
 
 function ChickenModel({ chicken, index, count, now, onSelect }: { chicken: UserChicken; index: number; count: number; now: number; onSelect: () => void }) {
   const root = useRef<Group>(null)
   const { animations } = useGLTF(CHICKEN_URL)
-  const { object, scale, offset } = useFittedAsset(CHICKEN_URL, 1.35)
+  const { scene } = useGLTF(CHICKEN_URL)
   const { actions } = useAnimations(animations, root)
+  const object = useMemo(() => {
+    const clone = scene.clone(true)
+    clone.traverse(node => { if ((node as Mesh).isMesh) { node.castShadow = true; node.receiveShadow = true } })
+    const box = new Box3().setFromObject(clone)
+    const size = box.getSize(new Vector3())
+    const scale = 1.35 / Math.max(size.y, 0.001)
+    return { clone, scale, offset: [-box.getCenter(new Vector3()).x * scale, -box.min.y * scale, -box.getCenter(new Vector3()).z * scale] as [number, number, number] }
+  }, [scene])
   const phase = index * 1.57 + chicken.id.length * 0.17
   const actionRef = useRef<string | undefined>(undefined)
   const walkAction = useMemo(() => Object.keys(actions).find(name => /walk/i.test(name)) ?? Object.keys(actions)[0], [actions])
   const idleAction = useMemo(() => Object.keys(actions).find(name => /idle|peck/i.test(name)) ?? walkAction, [actions, walkAction])
-  const spawn = useMemo(() => seededPosition(index, chicken.id), [chicken.id, index])
-  const line = useMemo(() => new Vector3((index - (count - 1) / 2) * 1.35, 0, LINE_Z), [count, index])
-  const dateReady = dateKey(chicken.last_collected_at) !== dateKey(now)
+  const spawn = useMemo(() => seededSpawn(index, chicken.id), [chicken.id, index])
+  const line = useMemo(() => new Vector3((index - (count - 1) / 2) * 2, 0.2, LINE_Z), [count, index])
+  const ready = dateKey(chicken.last_collected_at) !== dateKey(now)
 
   useEffect(() => {
     if (!idleAction) return
@@ -136,36 +151,30 @@ function ChickenModel({ chicken, index, count, now, onSelect }: { chicken: UserC
   useFrame(({ clock }, delta) => {
     if (!root.current) return
     const seconds = secondsSinceMidnight(now)
-    const preMidnight = seconds >= LINEUP_START
-    const postMidnightLaying = dateReady && seconds < 15
-    const lineup = preMidnight || postMidnightLaying
-    const walkCycle = (clock.elapsedTime + phase) % 10
-    const normalWalking = walkCycle < 5
-    const wander = new Vector3(spawn.x + Math.sin(clock.elapsedTime * 0.18 + phase) * 3.8, 0, spawn.z + Math.cos(clock.elapsedTime * 0.16 + phase) * 3.2)
+    const lineup = seconds >= LINEUP_START || (ready && seconds < 15)
+    const cycle = (clock.elapsedTime + phase) % 10
+    const normalWalking = cycle < 5
+    const wander = new Vector3(spawn.x + Math.sin(clock.elapsedTime * 0.2 + phase) * 1.8, 0.2, spawn.z + Math.cos(clock.elapsedTime * 0.17 + phase) * 1.8)
     const target = lineup ? line : wander
-    const moving = lineup ? true : normalWalking
-    const blend = lineup ? Math.min(1, delta * 0.55) : Math.min(1, delta * 0.9)
-    root.current.position.lerp(target, blend)
-    if (moving) {
-      const difference = target.clone().sub(root.current.position)
-      if (difference.lengthSq() > 0.001) root.current.rotation.y = Math.atan2(difference.x, difference.z)
-    }
+    const moving = lineup || normalWalking
+    root.current.position.lerp(target, Math.min(1, delta * (lineup ? 0.65 : 0.9)))
+    const difference = target.clone().sub(root.current.position)
+    if (moving && difference.lengthSq() > 0.001) root.current.rotation.y = Math.atan2(difference.x, difference.z)
     const desired = moving ? walkAction : idleAction
     if (desired && desired !== actionRef.current) {
-      actions[actionRef.current ?? '']?.fadeOut(0.25)
-      actions[desired]?.reset().fadeIn(0.25).play()
+      actions[actionRef.current ?? '']?.fadeOut(0.2)
+      actions[desired]?.reset().fadeIn(0.2).play()
       actionRef.current = desired
     }
-    root.current.position.y = Math.abs(Math.sin(clock.elapsedTime * (moving ? 5 : 1.5) + phase)) * (moving ? 0.035 : 0.012)
   })
 
-  return <group ref={root} position={spawn}><group position={offset} scale={scale} onClick={event => { event.stopPropagation(); onSelect() }} onPointerOver={() => { document.body.style.cursor = 'pointer' }} onPointerOut={() => { document.body.style.cursor = '' }}><primitive object={object} /></group></group>
+  return <group ref={root} position={spawn}><group position={object.offset} scale={object.scale} onClick={event => { event.stopPropagation(); onSelect() }} onPointerOver={() => { document.body.style.cursor = 'pointer' }} onPointerOut={() => { document.body.style.cursor = '' }}><primitive object={object.clone} /></group></group>
 }
 
 function GroundEgg({ chicken, type, index, count, now, onCollect }: { chicken: UserChicken; type: ChickenType; index: number; count: number; now: number; onCollect: (chicken: UserChicken) => Promise<void> }) {
   const [claiming, setClaiming] = useState(false)
   const ready = dateKey(chicken.last_collected_at) !== dateKey(now)
-  const position: [number, number, number] = [(index - (count - 1) / 2) * 1.35, 0, LINE_Z]
+  const position: [number, number, number] = [(index - (count - 1) / 2) * 2, 0, LINE_Z]
   if (!ready || claiming) return null
   async function claim() {
     if (claiming) return
@@ -185,7 +194,7 @@ function FarmWorld({ chickens, types, now, onCollect, onSelect }: { chickens: Us
 
 export function FarmScene({ chickens, types, now, onCollect }: { chickens: UserChicken[]; types: ChickenType[]; now: number; onCollect: (chicken: UserChicken) => Promise<void> }) {
   const [selected, setSelected] = useState<{ chicken: UserChicken; type: ChickenType } | null>(null)
-  return <div id="farm-canvas" className="relative h-[min(66vh,620px)] min-h-[440px] overflow-hidden rounded-[2rem] bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50 shadow-inner ring-1 ring-leaf/20"><Canvas shadows camera={{ position: [0, 2, 15], fov: 70 }} dpr={[1, 1.6]}><Suspense fallback={null}><FarmWorld chickens={chickens} types={types} now={now} onCollect={onCollect} onSelect={(chicken, type) => setSelected({ chicken, type })} /></Suspense></Canvas><div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1.5 text-center text-[10px] font-black uppercase tracking-wide text-white">Click farm to enter first-person mode · W A S D to walk</div>{selected && <ChickenInfoSheet chicken={selected.chicken} type={selected.type} now={now} onClose={() => setSelected(null)} />}</div>
+  return <div id="farm-canvas" className="relative h-[min(66vh,620px)] min-h-[440px] overflow-hidden rounded-[2rem] bg-gradient-to-b from-sky-300 via-sky-100 to-amber-50 shadow-inner ring-1 ring-leaf/20"><Canvas shadows camera={{ position: [0, 3, 15], fov: 70 }} dpr={[1, 1.6]}><Suspense fallback={null}><FarmWorld chickens={chickens} types={types} now={now} onCollect={onCollect} onSelect={(chicken, type) => setSelected({ chicken, type })} /></Suspense></Canvas><div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white/90">Click to look around · W A S D to walk</div>{selected && <ChickenInfoSheet chicken={selected.chicken} type={selected.type} now={now} onClose={() => setSelected(null)} />}</div>
 }
 
 useGLTF.preload(CHICKEN_URL)
