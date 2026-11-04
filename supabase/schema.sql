@@ -80,6 +80,19 @@ create table if not exists public.game_withdrawals (
 );
 create index if not exists game_withdrawals_user_idx on public.game_withdrawals(user_id, created_at desc);
 create index if not exists game_withdrawals_status_idx on public.game_withdrawals(status, created_at);
+alter table public.game_deposits replica identity full;
+alter table public.game_withdrawals replica identity full;
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_rel pr join pg_class c on c.oid = pr.prrelid join pg_namespace n on n.oid = c.relnamespace join pg_publication p on p.oid = pr.prpubid where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'game_deposits') then
+      alter publication supabase_realtime add table public.game_deposits;
+    end if;
+    if not exists (select 1 from pg_publication_rel pr join pg_class c on c.oid = pr.prrelid join pg_namespace n on n.oid = c.relnamespace join pg_publication p on p.oid = pr.prpubid where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'game_withdrawals') then
+      alter publication supabase_realtime add table public.game_withdrawals;
+    end if;
+  end if;
+end $$;
 
 create table if not exists public.game_settings (
   id                   integer primary key default 1 check (id = 1),
@@ -383,6 +396,8 @@ begin
     values (ref, d.user_id, d.id, bonus);
   end if;
   update public.game_deposits set status = 'approved', reviewed_at = now() where id = d.id;
+  insert into public.game_notifications (user_id, title, message)
+  values (d.user_id, 'Deposit Approved', format('Your deposit of %s Rs was approved. Transaction ID: %s', d.total_amount, d.id));
 end $$;
 
 create or replace function public.game_admin_reject_deposit(p_id uuid) returns void
@@ -396,10 +411,14 @@ end $$;
 -- Approve: mark completed. Money was already deducted at request time -> nothing is added back.
 create or replace function public.game_admin_approve_withdrawal(p_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
+declare w public.game_withdrawals;
 begin
   if not public.game_is_admin() then raise exception 'Admins only'; end if;
+  select * into w from public.game_withdrawals where id = p_id and status = 'pending' for update;
   update public.game_withdrawals set status = 'completed', reviewed_at = now() where id = p_id and status = 'pending';
   if not found then raise exception 'Withdrawal not found or already reviewed'; end if;
+  insert into public.game_notifications (user_id, title, message)
+  values (w.user_id, 'Withdrawal Successful', format('Your withdrawal of %s Rs was approved. Transaction ID: %s', w.amount, w.id));
 end $$;
 
 -- Public-safe trust feed: only completed withdrawals, recent three, with names masked.

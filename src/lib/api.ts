@@ -135,6 +135,18 @@ export async function fetchMyWithdrawals(userId: string): Promise<Withdrawal[]> 
   return (data ?? []).map(r => ({ ...(r as Withdrawal), amount: n(r.amount) }))
 }
 
+export async function fetchMyDeposit(userId: string, depositId: string): Promise<Deposit | null> {
+  const { data, error } = await getSupabase().from('game_deposits').select('*').eq('id', depositId).eq('user_id', userId).maybeSingle()
+  if (error) throw error
+  return data ? { ...(data as Deposit), quantity: n(data.quantity), total_amount: n(data.total_amount) } : null
+}
+
+export async function fetchMyWithdrawal(userId: string, withdrawalId: string): Promise<Withdrawal | null> {
+  const { data, error } = await getSupabase().from('game_withdrawals').select('*').eq('id', withdrawalId).eq('user_id', userId).maybeSingle()
+  if (error) throw error
+  return data ? { ...(data as Withdrawal), amount: n(data.amount) } : null
+}
+
 export async function fetchReferralEarnings(userId: string): Promise<number> {
   const { data, error } = await getSupabase()
     .from('game_referral_earnings').select('amount').eq('referrer_id', userId)
