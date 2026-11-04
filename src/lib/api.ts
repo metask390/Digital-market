@@ -163,8 +163,19 @@ export async function fetchNotifications(userId: string): Promise<GameNotificati
     user_id: String(row.user_id),
     title: String(row.title ?? 'Notification'),
     message: String(row.message ?? ''),
+    is_read: Boolean(row.is_read),
     created_at: String(row.created_at ?? ''),
   }))
+}
+
+export async function markNotificationsRead(userId: string) {
+  const { error } = await getSupabase().from('game_notifications').update({ is_read: true }).eq('user_id', userId).eq('is_read', false)
+  if (error) throw error
+}
+
+export async function deleteNotification(userId: string, notificationId: string) {
+  const { error } = await getSupabase().from('game_notifications').delete().eq('id', notificationId).eq('user_id', userId)
+  if (error) throw error
 }
 
 export interface GlobalWithdrawal {

@@ -133,9 +133,20 @@ create table if not exists public.game_notifications (
   user_id    uuid not null references public.game_users(user_id) on delete cascade,
   title      text not null,
   message    text not null,
+  is_read    boolean not null default false,
   created_at timestamptz not null default now()
 );
+alter table public.game_notifications add column if not exists is_read boolean not null default false;
 create index if not exists game_notifications_user_idx on public.game_notifications(user_id, created_at desc);
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') and not exists (
+    select 1 from pg_publication_rel pr join pg_class c on c.oid = pr.prrelid join pg_namespace n on n.oid = c.relnamespace join pg_publication p on p.oid = pr.prpubid
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'game_notifications'
+  ) then
+    alter publication supabase_realtime add table public.game_notifications;
+  end if;
+end $$;
 
 create table if not exists public.game_admins (
   user_id uuid primary key references auth.users(id) on delete cascade
@@ -205,6 +216,8 @@ drop policy if exists "earnings read own or admin"   on public.game_referral_ear
 drop policy if exists "admins read self"             on public.game_admins;
 drop policy if exists "notifications read own or admin" on public.game_notifications;
 drop policy if exists "notifications admin insert"     on public.game_notifications;
+drop policy if exists "notifications own update"        on public.game_notifications;
+drop policy if exists "notifications own delete"        on public.game_notifications;
 
 create policy "users read own or admin"       on public.game_users for select to authenticated
   using (user_id = auth.uid() or public.game_is_admin());
@@ -228,6 +241,10 @@ create policy "notifications read own or admin" on public.game_notifications for
   using (user_id = auth.uid() or public.game_is_admin());
 create policy "notifications admin insert" on public.game_notifications for insert to authenticated
   with check (public.game_is_admin());
+create policy "notifications own update" on public.game_notifications for update to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "notifications own delete" on public.game_notifications for delete to authenticated
+  using (user_id = auth.uid());
 
 -- No insert/update/delete policies on money tables: only the RPCs below can change them.
 
