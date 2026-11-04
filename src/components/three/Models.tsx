@@ -6,7 +6,7 @@ import { Box3, Mesh, Vector3, type Group } from 'three'
 import { SafeGlb, Placeholder } from './SafeGlb'
 
 export const CHICKEN_URL = '/chicken.glb'
-export const FARMHOUSE_URL = '/farmhouse.glb'
+export const FARMHOUSE_URL = '/models/house.glb'
 
 /** Clones the GLB scene, enables shadows and fits it to a target height standing on y = 0. */
 function useFitted(url: string, height: number) {
@@ -14,6 +14,9 @@ function useFitted(url: string, height: number) {
   return useMemo(() => {
     const obj = scene.clone(true)
     obj.traverse(o => {
+      if (url === FARMHOUSE_URL && /cow|sheep|animal|goat|pig|horse|donkey|duck|rooster|hen/iu.test(o.name)) {
+        o.visible = false
+      }
       if ((o as Mesh).isMesh) {
         o.castShadow = true
         o.receiveShadow = true
