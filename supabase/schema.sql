@@ -25,6 +25,10 @@ create table if not exists public.game_users (
   created_at              timestamptz not null default now()
   -- NOTE: email is intentionally NOT stored here (it lives in Supabase Auth).
 );
+alter table public.game_users add column if not exists withdraw_method text;
+alter table public.game_users add column if not exists withdraw_account_name text;
+alter table public.game_users add column if not exists withdraw_account_number text;
+alter table public.game_users add column if not exists withdraw_pin text;
 
 create table if not exists public.game_chicken_types (
   id         integer primary key,
@@ -318,6 +322,42 @@ begin
   return new_id;
 end $$;
 
+-- One-time withdrawal account setup. The PIN is stored as a bcrypt hash.
+create or replace function public.game_save_withdrawal_account(
+  p_method text, p_account_name text, p_account_number text, p_pin text
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); u public.game_users;
+begin
+  u := public.game_lock_active_user(uid);
+  if coalesce(trim(u.withdraw_account_number), '') <> '' then raise exception 'Withdrawal account is already set'; end if;
+  if p_method not in ('easypaisa', 'jazzcash', 'bank') then raise exception 'Invalid withdrawal method'; end if;
+  if coalesce(trim(p_account_name), '') = '' or coalesce(trim(p_account_number), '') = '' then raise exception 'Account name and number are required'; end if;
+  if p_pin !~ '^[0-9]{4}$' then raise exception 'PIN must be exactly 4 digits'; end if;
+  update public.game_users set withdraw_method = p_method, withdraw_account_name = trim(p_account_name), withdraw_account_number = trim(p_account_number), withdraw_pin = crypt(p_pin, gen_salt('bf')) where user_id = uid;
+end $$;
+
+-- New withdrawal signature: account and method come from the one-time saved setup.
+create or replace function public.game_request_withdrawal(p_amount numeric, p_pin text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); u public.game_users; new_id uuid; day_start timestamptz := (date_trunc('day', now() at time zone 'Asia/Karachi')) at time zone 'Asia/Karachi'; today_total numeric; take_direct numeric; take_ref numeric;
+begin
+  u := public.game_lock_active_user(uid);
+  if coalesce(trim(u.withdraw_account_number), '') = '' then raise exception 'Set up your withdrawal account first'; end if;
+  if p_pin !~ '^[0-9]{4}$' or u.withdraw_pin is null or crypt(p_pin, u.withdraw_pin) <> u.withdraw_pin then raise exception 'Incorrect withdrawal PIN'; end if;
+  if p_amount is null or p_amount < 5 then raise exception 'Minimum withdrawal is 5 Rs'; end if;
+  if p_amount > 10000 then raise exception 'Maximum withdrawal is 10,000 Rs per day'; end if;
+  select coalesce(sum(amount), 0) into today_total from public.game_withdrawals where user_id = uid and status <> 'rejected' and created_at >= day_start;
+  if today_total + p_amount > 10000 then raise exception 'Daily withdrawal limit of 10,000 Rs reached'; end if;
+  if u.wallet_balance < p_amount then raise exception 'Insufficient wallet balance'; end if;
+  if p_amount > u.direct_withdraw_limit + u.referral_withdraw_limit then raise exception 'Withdrawal is not available for this amount yet. Invest in more chickens to unlock withdrawals.'; end if;
+  take_direct := least(p_amount, u.direct_withdraw_limit);
+  take_ref := p_amount - take_direct;
+  update public.game_users set wallet_balance = wallet_balance - p_amount, direct_withdraw_limit = direct_withdraw_limit - take_direct, referral_withdraw_limit = referral_withdraw_limit - take_ref where user_id = uid;
+  insert into public.game_withdrawals (user_id, amount, method, account_number, account_name, status, direct_limit_used, referral_limit_used) values (uid, p_amount, u.withdraw_method, u.withdraw_account_number, u.withdraw_account_name, 'pending', take_direct, take_ref) returning id into new_id;
+  return new_id;
+end $$;
+
 -- ------------------------------------------------------------- admin RPCs
 create or replace function public.game_admin_approve_deposit(p_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
@@ -447,6 +487,8 @@ revoke all on function public.game_create_deposit(integer, integer, text, text, 
 revoke all on function public.game_collect_egg(uuid) from public, anon;
 revoke all on function public.game_sell_eggs() from public, anon;
 revoke all on function public.game_request_withdrawal(numeric, text, text, text) from public, anon;
+revoke all on function public.game_save_withdrawal_account(text, text, text, text) from public, anon;
+revoke all on function public.game_request_withdrawal(numeric, text) from public, anon;
 revoke all on function public.game_admin_approve_deposit(uuid) from public, anon;
 revoke all on function public.game_admin_reject_deposit(uuid) from public, anon;
 revoke all on function public.game_admin_approve_withdrawal(uuid) from public, anon;
@@ -462,6 +504,8 @@ grant execute on function public.game_create_deposit(integer, integer, text, tex
 grant execute on function public.game_collect_egg(uuid) to authenticated;
 grant execute on function public.game_sell_eggs() to authenticated;
 grant execute on function public.game_request_withdrawal(numeric, text, text, text) to authenticated;
+grant execute on function public.game_save_withdrawal_account(text, text, text, text) to authenticated;
+grant execute on function public.game_request_withdrawal(numeric, text) to authenticated;
 grant execute on function public.game_admin_approve_deposit(uuid) to authenticated;
 grant execute on function public.game_admin_reject_deposit(uuid) to authenticated;
 grant execute on function public.game_admin_approve_withdrawal(uuid) to authenticated;

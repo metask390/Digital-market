@@ -17,6 +17,9 @@ function normalizeUser(r: Record<string, unknown>): GameUser {
     direct_withdraw_limit: n(r.direct_withdraw_limit),
     referral_withdraw_limit: n(r.referral_withdraw_limit),
     referred_by: (r.referred_by as string) ?? null,
+    withdraw_method: (r.withdraw_method as string) ?? null,
+    withdraw_account_name: (r.withdraw_account_name as string) ?? null,
+    withdraw_account_number: (r.withdraw_account_number as string) ?? null,
     is_blocked: Boolean(r.is_blocked),
   }
 }
@@ -207,12 +210,20 @@ export async function sellEggs(): Promise<number> {
   return n(data)
 }
 
-export async function requestWithdrawal(args: { amount: number; method: string; accountNumber: string; accountName: string }) {
-  const { error } = await getSupabase().rpc('game_request_withdrawal', {
+export async function saveWithdrawalAccount(args: { method: string; accountName: string; accountNumber: string; pin: string }) {
+  const { error } = await getSupabase().rpc('game_save_withdrawal_account', {
+    p_method: args.method,
     p_account_name: args.accountName,
     p_account_number: args.accountNumber,
+    p_pin: args.pin,
+  })
+  if (error) throw error
+}
+
+export async function requestWithdrawal(args: { amount: number; pin: string }) {
+  const { error } = await getSupabase().rpc('game_request_withdrawal', {
     p_amount: Number(args.amount),
-    p_method: args.method,
+    p_pin: args.pin,
   })
   if (error) throw error
 }

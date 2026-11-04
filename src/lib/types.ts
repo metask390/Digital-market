@@ -7,6 +7,9 @@ export interface GameUser {
   direct_withdraw_limit: number
   referral_withdraw_limit: number
   referred_by: string | null
+  withdraw_method: string | null
+  withdraw_account_name: string | null
+  withdraw_account_number: string | null
   is_blocked: boolean
 }
 
