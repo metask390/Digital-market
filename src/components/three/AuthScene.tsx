@@ -4,9 +4,9 @@ import { Environment, PerspectiveCamera, useGLTF } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Suspense, useMemo, useRef } from 'react'
 import { Box3, Group, Mesh, Vector3 } from 'three'
+import { FarmhouseModel } from './Models'
 
 const CHICKEN_URL = '/models/chicken.glb'
-const BARN_URL = '/models/barn.glb'
 
 type ChickenMode = 'idle' | 'circle' | 'patrol'
 
@@ -23,11 +23,6 @@ function fitted(url: string, height: number) {
     const scale = height / Math.max(size.y, 0.001)
     return { object, scale, offset: [-center.x * scale, -box.min.y * scale, -center.z * scale] as [number, number, number] }
   }, [scene, height])
-}
-
-function Barn() {
-  const { object, scale, offset } = fitted(BARN_URL, 3.2)
-  return <group position={[0, 0, -2.8]} rotation-y={0.15}><group position={offset} scale={scale}><primitive object={object} /></group></group>
 }
 
 function AnimatedChicken({ mode, phase, position, height }: { mode: ChickenMode; phase: number; position: [number, number, number]; height: number }) {
@@ -61,7 +56,7 @@ function AnimatedChicken({ mode, phase, position, height }: { mode: ChickenMode;
 }
 
 function SceneContents() {
-  return <><Environment preset="sunset" /><ambientLight intensity={0.65} /><directionalLight castShadow position={[4, 7, 5]} intensity={2.2} color="#ffe0ae" shadow-mapSize={[1024, 1024]} /><hemisphereLight intensity={0.3} color="#fff4d6" groundColor="#63894b" /><group position={[0, -1.3, 0]}><mesh rotation-x={-Math.PI / 2} receiveShadow><planeGeometry args={[16, 12]} /><meshStandardMaterial color="#6da84c" roughness={1} /></mesh><Barn /><AnimatedChicken mode="idle" phase={0} position={[0.65, 0, 1.15]} height={1.35} /><AnimatedChicken mode="circle" phase={1.4} position={[0, 0, 0]} height={1.1} /><AnimatedChicken mode="patrol" phase={2.8} position={[0, 0, 0]} height={1.05} /></group></>
+  return <><Environment preset="sunset" /><ambientLight intensity={0.65} /><directionalLight castShadow position={[4, 7, 5]} intensity={2.2} color="#ffe0ae" shadow-mapSize={[1024, 1024]} /><hemisphereLight intensity={0.3} color="#fff4d6" groundColor="#63894b" /><group position={[0, -1.3, 0]}><mesh rotation-x={-Math.PI / 2} receiveShadow><planeGeometry args={[16, 12]} /><meshStandardMaterial color="#6da84c" roughness={1} /></mesh><FarmhouseModel height={3.2} /><AnimatedChicken mode="idle" phase={0} position={[0.65, 0, 1.15]} height={1.35} /><AnimatedChicken mode="circle" phase={1.4} position={[0, 0, 0]} height={1.1} /><AnimatedChicken mode="patrol" phase={2.8} position={[0, 0, 0]} height={1.05} /></group></>
 }
 
 export default function AuthScene() {
@@ -69,4 +64,3 @@ export default function AuthScene() {
 }
 
 useGLTF.preload(CHICKEN_URL)
-useGLTF.preload(BARN_URL)

@@ -1,11 +1,46 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls, Text } from '@react-three/drei'
 import { Suspense } from 'react'
 import type { UserChicken } from '@/lib/types'
 import { ChickenModel, FarmhouseModel } from './Models'
+
+function PlayerMovement() {
+  const { camera } = useThree()
+  const keys = useRef<Record<string, boolean>>({})
+
+  useEffect(() => {
+    camera.position.set(0, 1.6, 4.8)
+    const down = (event: KeyboardEvent) => { keys.current[event.code] = true }
+    const up = (event: KeyboardEvent) => { keys.current[event.code] = false }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [camera])
+
+  useFrame((_, delta) => {
+    const direction = { x: 0, z: 0 }
+    if (keys.current.KeyW || keys.current.ArrowUp) direction.z -= 1
+    if (keys.current.KeyS || keys.current.ArrowDown) direction.z += 1
+    if (keys.current.KeyA || keys.current.ArrowLeft) direction.x -= 1
+    if (keys.current.KeyD || keys.current.ArrowRight) direction.x += 1
+    const length = Math.hypot(direction.x, direction.z)
+    if (!length) return
+    const speed = 3.5 * Math.min(delta, 0.05) / length
+    camera.translateX(direction.x * speed)
+    camera.translateZ(direction.z * speed)
+    camera.position.x = Math.max(-4.5, Math.min(4.5, camera.position.x))
+    camera.position.z = Math.max(-4.5, Math.min(5.5, camera.position.z))
+    camera.position.y = 1.6
+  })
+
+  return null
+}
 
 function ChickenFlock({ chickens }: { chickens: UserChicken[] }) {
   const spots = useMemo(() => chickens.map((_, index) => {
@@ -46,6 +81,7 @@ export default function FarmhouseInterior({ chickens }: { chickens: UserChicken[
           <FarmhouseModel height={6.2} />
           <ChickenFlock chickens={chickens} />
         </Suspense>
+        <PlayerMovement />
         <PointerLockControls />
       </Canvas>
       <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">

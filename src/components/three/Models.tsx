@@ -6,7 +6,7 @@ import { Box3, Mesh, Vector3, type Group } from 'three'
 import { SafeGlb, Placeholder } from './SafeGlb'
 
 export const CHICKEN_URL = '/chicken.glb'
-export const FARMHOUSE_URL = '/models/house.glb'
+export const FARMHOUSE_URL = '/models/farmhouse.glb'
 
 /** Clones the GLB scene, enables shadows and fits it to a target height standing on y = 0. */
 function useFitted(url: string, height: number) {
@@ -63,8 +63,10 @@ export function ChickenModel({ height = 1.4, phase = 0, color }: { height?: numb
 function FarmhouseGlb({ height }: { height: number }) {
   const { obj, scale, offset } = useFitted(FARMHOUSE_URL, height)
   return (
-    <group position={offset} scale={scale}>
+    <group position={[0, 0, 0]}>
+      <group position={offset} scale={scale}>
       <primitive object={obj} />
+      </group>
     </group>
   )
 }
